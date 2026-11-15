@@ -1,0 +1,24 @@
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Editor / OS local files
+.DS_Store
+Thumbs.db
+
+# Local reference material and analysis output
+reference/
+research/input/
+research/evidence/
+*.wxapkg
+
+# Machine-specific diagnostic report
+docs/rea-local-audit.md
