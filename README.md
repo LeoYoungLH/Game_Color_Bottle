@@ -1,13 +1,25 @@
 # Game Color Bottle
 
-微信瓶子游戏的玩法研究与原创实现项目，目前处于规划阶段。
+微信瓶子游戏的原创实现项目，当前提供基础可玩版本，并继续按已拆分任务扩展。
+
+
+## 当前可玩版本
+
+已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2)，包含 S01–S03 三个基础关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
+
+```powershell
+npm.cmd ci
+npm.cmd run dev
+```
+
+需要 Node.js 24.12 或更新版本。游戏入口默认是 http://127.0.0.1:5173/ 。运行 `npm.cmd test` 检查游戏会话行为，运行 `npm.cmd run build` 做类型检查和生产构建。
 
 ## 项目文档
 
 - [项目术语](./CONTEXT.md)
 - [研究与开发规划](./docs/wechat-bottle-game-plan.md)
 
-目标游戏、具体玩法、开发引擎及发布范围尚待确认。当前仓库没有可运行游戏，也没有构建或测试命令。
+当前已交付基础倒水、固定目标收取与三关验证流程；完整微信工程和后续机制按任务逐步实现。
 
 ## 开发原则
 
