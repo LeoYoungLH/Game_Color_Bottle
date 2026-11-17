@@ -20,6 +20,10 @@ const reasons: Record<RejectionReason, string> = {
   'completed-source': '这瓶已经装好，正在等待匹配的收集槽。',
   'collected-bottle': '这瓶已经收取，留下的位置不能再接水。',
   'level-complete': '这一关已经完成，可以回到关卡或再玩一次。',
+  'not-ad-bottle': '请选择一个尚未解锁的广告空瓶。',
+  'ad-already-unlocked': '这只广告空瓶已经解锁。',
+  'ad-request-pending': '请先完成或关闭当前模拟广告。',
+  'stale-ad-result': '这次模拟广告结果已过期，局面没有变化。',
 };
 
 let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = null;
@@ -57,6 +61,14 @@ function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
 
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
+  const requested = result.events.find(event => event.type === 'ad-requested');
+  if (requested) return `正在模拟解锁 ${requested.request.bottleId}。`;
+  const adResult = result.events.find(event => event.type === 'ad-result');
+  if (adResult) {
+    if (adResult.outcome === 'success') return `广告空瓶 ${adResult.bottleId} 已解锁。`;
+    const message = { cancelled: '模拟广告已提前关闭', failed: '模拟广告加载失败', unavailable: '当前没有可用的模拟广告' }[adResult.outcome];
+    return `${message}，瓶位未改变。`;
+  }
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
   const released = result.events.filter(event => event.type === 'released');
@@ -108,13 +120,23 @@ app.addEventListener('click', event => {
   const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-level], [data-bottle], [data-feedback]') : null;
   if (!button || !app.contains(button)) return;
   event.preventDefault();
+  const pending = current?.session.getSnapshot().pendingAd;
+  if (pending) {
+    const outcome = button.dataset.outcome;
+    if (button.dataset.action === 'ad-result' && (outcome === 'success' || outcome === 'cancelled' || outcome === 'failed' || outcome === 'unavailable')) {
+      dispatch({ type: 'resolve-ad', request: pending, outcome });
+    }
+    return;
+  }
   if (button.dataset.level) {
     const level = BASIC_LEVELS.find(candidate => candidate.definition.id === button.dataset.level);
     if (level) start(level);
     return;
   }
   if (button.dataset.bottle) {
-    dispatch({ type: 'select-bottle', bottleId: button.dataset.bottle });
+    const bottleId = button.dataset.bottle;
+    const bottle = current?.session.getSnapshot().bottles.find(candidate => candidate.id === bottleId);
+    dispatch(bottle?.status === 'ad-locked' ? { type: 'request-ad-bottle', bottleId } : { type: 'select-bottle', bottleId });
     return;
   }
   if (button.dataset.feedback === 'sound' || button.dataset.feedback === 'vibration') {
@@ -143,6 +165,8 @@ app.addEventListener('click', event => {
 
 app.addEventListener('cancel', event => {
   event.preventDefault();
+  const pending = current?.session.getSnapshot().pendingAd;
+  if (pending) { dispatch({ type: 'resolve-ad', request: pending, outcome: 'cancelled' }); return; }
   if (confirmRestart) { confirmRestart = false; render(); }
 }, true);
 

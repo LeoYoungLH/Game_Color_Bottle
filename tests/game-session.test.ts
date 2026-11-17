@@ -646,3 +646,156 @@ test('a matching receive-only bottle releases and collects exactly once in the s
   assert.equal(after.bottles.find(b => b.id === 'I')?.receiveOnly, true);
   assert.deepEqual(after.bottles.map(b => b.id), before.bottles.map(b => b.id));
 });
+
+test('a pending simulated ad freezes gameplay and non-success outcomes leave bottles unchanged', () => {
+  for (const outcome of ['cancelled', 'failed', 'unavailable'] as const) {
+    const session = createGameSession(opening);
+    const start = session.getSnapshot();
+    const requested = session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+    assert.equal(requested.accepted, true);
+    const pending = session.getSnapshot().pendingAd!;
+    assert.equal(pending.reward, 'empty-bottle');
+    assert.equal(pending.bottleId, 'ad-1');
+    assert.equal(pending.levelId, start.levelId);
+    assert.equal(pending.sessionId, start.sessionId);
+    assert.ok(pending.requestId);
+    assert.deepEqual(requested.events, [{ type: 'ad-requested', request: pending }]);
+    const waiting = session.getSnapshot();
+    for (const action of [
+      { type: 'pour', from: 'A', to: 'D' },
+      { type: 'select-bottle', bottleId: 'A' },
+      { type: 'cancel-selection' },
+      { type: 'set-feedback', kind: 'sound', enabled: true },
+      { type: 'request-ad-bottle', bottleId: 'ad-2' },
+    ] as const) {
+      assert.deepEqual(session.dispatch(action), { accepted: false, reason: 'ad-request-pending', events: [] });
+      assert.deepEqual(session.getSnapshot(), waiting);
+    }
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: pending, outcome }).events, [
+      { type: 'ad-result', bottleId: 'ad-1', outcome },
+    ]);
+    const after = session.getSnapshot();
+    assert.equal(after.pendingAd, null);
+    assert.deepEqual(after.bottles, start.bottles);
+    assert.equal(after.moveCount, 0);
+    assert.equal(after.collected.length, 0);
+    assert.equal(session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' }).accepted, true);
+    assert.notEqual(session.getSnapshot().pendingAd?.requestId, pending.requestId);
+  }
+});
+
+test('a completed simulated ad unlocks only its requested bottle and never awards twice', () => {
+  const session = createGameSession(opening);
+  assert.deepEqual(session.dispatch({ type: 'request-ad-bottle', bottleId: 'A' }), {
+    accepted: false, reason: 'not-ad-bottle', events: [],
+  });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const request = session.getSnapshot().pendingAd!;
+  for (const changed of [
+    { ...request, bottleId: 'ad-2' },
+    { ...request, reward: 'fourth-slot' },
+    { ...request, levelId: 'other' },
+    { ...request, sessionId: 'other' },
+    { ...request, requestId: 'other' },
+  ]) {
+    const before = session.getSnapshot();
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: changed, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(session.getSnapshot(), before);
+  }
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }).events, [
+    { type: 'ad-result', bottleId: 'ad-1', outcome: 'success' },
+    { type: 'ad-bottle-unlocked', bottleId: 'ad-1' },
+  ]);
+  const unlocked = session.getSnapshot();
+  assert.deepEqual(unlocked.bottles.slice(-2).map(b => [b.id, b.status, b.layers]), [
+    ['ad-1', 'available', []], ['ad-2', 'ad-locked', []],
+  ]);
+  assert.equal(unlocked.collected.length, 0);
+  assert.equal(unlocked.moveCount, 0);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), {
+    accepted: false, reason: 'stale-ad-result', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), unlocked);
+  assert.deepEqual(session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' }), {
+    accepted: false, reason: 'ad-already-unlocked', events: [],
+  });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-2' });
+  const second = session.getSnapshot().pendingAd!;
+  session.dispatch({ type: 'resolve-ad', request: second, outcome: 'success' });
+  assert.deepEqual(session.getSnapshot().bottles.slice(-2).map(b => b.status), ['available', 'available']);
+});
+
+test('an unlocked ad bottle can receive, pour and be collected without refilling its position', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'pour', from: 'A', to: 'ad-1' });
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.layers, ['coral', 'coral']);
+  assert.equal(session.dispatch({ type: 'pour', from: 'ad-1', to: 'D' }).accepted, true);
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.layers, []);
+  session.dispatch({ type: 'pour', from: 'D', to: 'ad-1' });
+  session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  session.dispatch({ type: 'pour', from: 'B', to: 'C' });
+  const last = session.dispatch({ type: 'pour', from: 'B', to: 'ad-1' });
+  assert.deepEqual(last.events.flatMap(event => event.type === 'collected' ? [event.bottleId] : []), ['ad-1']);
+  const end = session.getSnapshot();
+  assert.equal(end.phase, 'won');
+  assert.equal(end.bottles.find(b => b.id === 'ad-1')?.status, 'collected');
+  assert.equal(end.bottles.find(b => b.id === 'ad-2')?.status, 'ad-locked');
+  assert.equal(session.dispatch({ type: 'pour', from: 'D', to: 'ad-1' }).accepted, false);
+});
+
+test('old-session ad results cannot unlock a new game of the same or another level', async () => {
+  const old = createGameSession(opening);
+  old.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const oldRequest = old.getSnapshot().pendingAd!;
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  for (const level of [opening, BASIC_LEVELS[1]!.definition]) {
+    const next = createGameSession(level);
+    const before = next.getSnapshot();
+    assert.notEqual(before.sessionId, oldRequest.sessionId);
+    assert.deepEqual(next.dispatch({ type: 'resolve-ad', request: oldRequest, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(next.getSnapshot(), before);
+    assert.deepEqual(before.bottles.slice(-2).map(b => b.status), ['ad-locked', 'ad-locked']);
+  }
+});
+
+test('unknown ad outcomes and edits to a returned request cannot poison the pending request', () => {
+  const session = createGameSession(opening);
+  const result = session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const request = result.events.flatMap(event => event.type === 'ad-requested' ? [event.request] : [])[0];
+  assert.ok(request);
+  Reflect.set(request, 'bottleId', 'ad-2');
+  const pending = session.getSnapshot().pendingAd!;
+  assert.equal(pending.bottleId, 'ad-1');
+  const before = session.getSnapshot();
+  assert.deepEqual(Reflect.apply(session.dispatch, null, [{ type: 'resolve-ad', request: pending, outcome: 'unexpected' }]), {
+    accepted: false, reason: 'stale-ad-result', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), before);
+});
+
+test('a late result from a cancelled request cannot replace a retry for the same bottle', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'select-bottle', bottleId: 'A' });
+  const selected = session.getSnapshot();
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const oldRequest = session.getSnapshot().pendingAd!;
+  session.dispatch({ type: 'resolve-ad', request: oldRequest, outcome: 'cancelled' });
+  assert.equal(session.getSnapshot().selectedBottleId, selected.selectedBottleId);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const retry = session.getSnapshot();
+  assert.notEqual(retry.pendingAd?.requestId, oldRequest.requestId);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: oldRequest, outcome: 'success' }), {
+    accepted: false, reason: 'stale-ad-result', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), retry);
+  session.dispatch({ type: 'resolve-ad', request: retry.pendingAd!, outcome: 'success' });
+  assert.equal(session.getSnapshot().selectedBottleId, 'A');
+  assert.equal(session.dispatch({ type: 'select-bottle', bottleId: 'ad-1' }).accepted, true);
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.layers, ['coral', 'coral']);
+});

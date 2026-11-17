@@ -45,6 +45,16 @@ export interface CollectionReceipt {
   readonly slotId: string;
 }
 
+export interface AdBottleRequest {
+  readonly reward: 'empty-bottle';
+  readonly bottleId: string;
+  readonly levelId: string;
+  readonly sessionId: string;
+  readonly requestId: string;
+}
+
+export type AdOutcome = 'success' | 'cancelled' | 'failed' | 'unavailable';
+
 export interface SessionSnapshot {
   readonly sessionId: string;
   readonly levelId: string;
@@ -57,6 +67,7 @@ export interface SessionSnapshot {
   readonly moveCount: number;
   readonly selectedBottleId: string | null;
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
+  readonly pendingAd: AdBottleRequest | null;
 }
 
 export type FeedbackKind = 'sound' | 'vibration';
@@ -64,13 +75,18 @@ export type PlayerAction =
   | { readonly type: 'pour'; readonly from: string; readonly to: string }
   | { readonly type: 'select-bottle'; readonly bottleId: string }
   | { readonly type: 'cancel-selection' }
-  | { readonly type: 'set-feedback'; readonly kind: FeedbackKind; readonly enabled: boolean };
-export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete';
+  | { readonly type: 'set-feedback'; readonly kind: FeedbackKind; readonly enabled: boolean }
+  | { readonly type: 'request-ad-bottle'; readonly bottleId: string }
+  | { readonly type: 'resolve-ad'; readonly request: Readonly<Record<keyof AdBottleRequest, string>>; readonly outcome: AdOutcome };
+export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
   | { readonly type: 'revealed'; readonly bottleId: string; readonly color: string }
   | { readonly type: 'unsealed'; readonly bottleId: string; readonly threshold: number }
   | { readonly type: 'released'; readonly bottleId: string }
+  | { readonly type: 'ad-requested'; readonly request: AdBottleRequest }
+  | { readonly type: 'ad-result'; readonly bottleId: string; readonly outcome: AdOutcome }
+  | { readonly type: 'ad-bottle-unlocked'; readonly bottleId: string }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -143,6 +159,7 @@ export function createGameSession(level: LevelDefinition) {
   let phase: SessionSnapshot['phase'] = 'playing';
   let selectedBottleId: string | null = null;
   const feedback = { sound: false, vibration: false };
+  let pendingAd: AdBottleRequest | null = null;
 
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
@@ -151,7 +168,7 @@ export function createGameSession(level: LevelDefinition) {
       targets,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
-      moveCount, selectedBottleId, feedback,
+      moveCount, selectedBottleId, feedback, pendingAd,
     });
   }
 
@@ -191,6 +208,33 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   function dispatch(action: PlayerAction): ActionResult {
+    if (action.type === 'resolve-ad') {
+      const request = action.request;
+      if (action.outcome !== 'success' && action.outcome !== 'cancelled' && action.outcome !== 'failed' && action.outcome !== 'unavailable') {
+        return { accepted: false, reason: 'stale-ad-result', events: [] };
+      }
+      if (!pendingAd || request.reward !== pendingAd.reward || request.bottleId !== pendingAd.bottleId
+        || request.levelId !== pendingAd.levelId || request.sessionId !== pendingAd.sessionId || request.requestId !== pendingAd.requestId) {
+        return { accepted: false, reason: 'stale-ad-result', events: [] };
+      }
+      const bottle = bottles.find(b => b.id === pendingAd!.bottleId)!;
+      pendingAd = null;
+      const events: GameEvent[] = [{ type: 'ad-result', bottleId: bottle.id, outcome: action.outcome }];
+      if (action.outcome === 'success') {
+        bottle.status = 'available';
+        events.push({ type: 'ad-bottle-unlocked', bottleId: bottle.id });
+      }
+      return { accepted: true, events };
+    }
+    if (pendingAd) return { accepted: false, reason: 'ad-request-pending', events: [] };
+    if (action.type === 'request-ad-bottle') {
+      if (phase === 'won') return { accepted: false, reason: 'level-complete', events: [] };
+      if (!isAdBottleId(action.bottleId)) return { accepted: false, reason: 'not-ad-bottle', events: [] };
+      const bottle = bottles.find(b => b.id === action.bottleId)!;
+      if (bottle.status !== 'ad-locked') return { accepted: false, reason: 'ad-already-unlocked', events: [] };
+      pendingAd = { reward: 'empty-bottle', bottleId: bottle.id, levelId, sessionId, requestId: crypto.randomUUID() };
+      return { accepted: true, events: [{ type: 'ad-requested', request: structuredClone(pendingAd) }] };
+    }
     if (action.type === 'set-feedback') {
       feedback[action.kind] = action.enabled;
       return { accepted: true, events: [{ type: 'feedback-changed', kind: action.kind, enabled: action.enabled }] };

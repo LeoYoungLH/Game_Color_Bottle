@@ -37,7 +37,7 @@ function renderBottle(bottle: BottleView, selected: boolean, dense: boolean, col
   const hiddenCount = bottle.layers.filter(layer => layer === null).length;
   const ad = isAdBottleId(bottle.id);
   const threshold = bottle.sealThreshold ?? 0;
-  const label = bottle.status === 'ad-locked' ? `广告空瓶 ${bottle.id}，尚未解锁`
+  const label = bottle.status === 'ad-locked' ? `广告空瓶 ${bottle.id}，点击模拟广告解锁`
     : bottle.status === 'collected' ? `瓶 ${bottle.id}，已收取`
     : bottle.status === 'sealed' ? `封签瓶 ${bottle.id}，已收取 ${collectedCount}/${threshold} 瓶，尚未开启`
     : bottle.status === 'receive-only' ? `定色瓶 ${bottle.id}，只接水，${bottle.layers.length}/4`
@@ -52,8 +52,8 @@ function renderBottle(bottle: BottleView, selected: boolean, dense: boolean, col
     : bottle.status === 'sealed'
       ? `<span class="bottle-art sealed-art"><span class="bottle-neck"></span><span class="bottle-body"><span class="seal-sheet"><span class="seal-stamp">封</span><strong>${threshold}</strong><small>瓶后开启</small></span></span></span>`
     : `<span class="bottle-art"><span class="bottle-neck"></span><span class="bottle-body"><span class="liquid-stack">${layers}</span>${bottle.status === 'ad-locked' ? '<span class="ad-lock"><i data-lucide="video" aria-hidden="true"></i></span>' : ''}</span>${bottle.status === 'receive-only' ? '<span class="fixed-clamp"><i data-lucide="arrow-down" aria-hidden="true"></i></span>' : ''}</span>`;
-  const caption = bottle.status === 'collected' ? '已收取' : bottle.status === 'ad-locked' ? '广告' : bottle.status === 'sealed' ? `收取 ${collectedCount}/${threshold}` : bottle.status === 'receive-only' ? '只接水' : bottle.status === 'ready' ? '待收' : empty ? '空瓶' : `${bottle.layers.length}/4`;
-  return `<button class="bottle ${bottle.status} ${selected ? 'selected' : ''}" data-bottle="${escape(bottle.id)}" data-focus-key="bottle-${escape(bottle.id)}" aria-label="${escape(label)}" aria-pressed="${selected}" ${bottle.status === 'ad-locked' || bottle.status === 'collected' || bottle.status === 'sealed' ? 'aria-disabled="true"' : ''}><span class="bottle-id">${ad ? '+' : escape(bottle.id)}</span>${interior}<span class="bottle-caption ${dense ? 'dense-caption' : ''}">${caption}</span></button>`;
+  const caption = bottle.status === 'collected' ? '已收取' : bottle.status === 'ad-locked' ? '模拟广告' : bottle.status === 'sealed' ? `收取 ${collectedCount}/${threshold}` : bottle.status === 'receive-only' ? '只接水' : bottle.status === 'ready' ? '待收' : empty ? '空瓶' : `${bottle.layers.length}/4`;
+  return `<button class="bottle ${bottle.status} ${selected ? 'selected' : ''}" data-bottle="${escape(bottle.id)}" data-focus-key="bottle-${escape(bottle.id)}" aria-label="${escape(label)}" aria-pressed="${selected}" ${bottle.status === 'collected' || bottle.status === 'sealed' ? 'aria-disabled="true"' : ''}><span class="bottle-id">${ad ? '+' : escape(bottle.id)}</span>${interior}<span class="bottle-caption ${dense ? 'dense-caption' : ''}">${caption}</span></button>`;
 }
 
 export function layoutBottleRows(bottles: readonly BottleView[]): { columns: number; rows: BottleView[][] } {
@@ -93,5 +93,6 @@ export function renderGame(level: AuthoredLevel, snapshot: SessionSnapshot, noti
     </div>
     ${won ? `<dialog class="completion-dialog" id="completion-dialog" aria-labelledby="completion-title"><span class="completion-seal" aria-hidden="true">✓</span><span class="section-label">${escape(level.definition.id)} · 收取完成</span><h2 id="completion-title">${nextLevel ? '本关完成' : '本版验证关卡完成'}</h2><p>${snapshot.requiredCollections} 瓶已收取 · ${snapshot.moveCount} 次倒水</p><div class="dialog-actions">${nextLevel ? `<button class="primary" data-action="next">进入 ${escape(nextLevel.definition.id)} <i data-lucide="arrow-right" aria-hidden="true"></i></button>` : ''}<button class="secondary" data-action="home">返回关卡</button><button class="secondary" data-action="replay">再玩一次</button></div></dialog>` : ''}
     ${confirmRestart && !won ? '<dialog class="restart-dialog" id="restart-dialog" aria-labelledby="restart-title"><h2 id="restart-title">重新开始？</h2><p>本关颜色将回到开局状态。</p><div class="dialog-actions"><button class="primary" data-action="replay">重新开始</button><button class="secondary" data-action="keep-playing">继续当前局</button></div></dialog>' : ''}
+    ${snapshot.pendingAd ? `<dialog class="ad-dialog" aria-labelledby="ad-title"><span class="section-label">模拟广告 · ${escape(snapshot.pendingAd.bottleId)}</span><h2 id="ad-title">解锁广告空瓶</h2><p>规则验证模式，不播放真实广告。</p><div class="dialog-actions"><button class="primary" data-action="ad-result" data-outcome="success">模拟成功</button><button class="secondary" data-action="ad-result" data-outcome="cancelled">提前关闭</button><button class="secondary" data-action="ad-result" data-outcome="failed">加载失败</button><button class="secondary" data-action="ad-result" data-outcome="unavailable">无可用广告</button></div></dialog>` : ''}
   </main>`;
 }

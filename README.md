@@ -5,7 +5,7 @@
 
 ## 当前可玩版本
 
-已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #7：定色瓶](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/7)，包含 S01–S11 十一个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
+已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #8：广告空瓶模拟解锁](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/8)，包含 S01–S11 十一个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
 
 ```powershell
 npm.cmd ci
