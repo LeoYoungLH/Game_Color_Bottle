@@ -86,6 +86,7 @@ h1, h2, p { margin: 0; }
 .target-card strong { font-size: 12px; margin-top: 3px; }
 .target-card small { font-size: 9px; color: #859078; margin-top: 6px; }
 .target-card.fulfilled { opacity: .6; background: #eef3e5; border-top-color: #7e9d6b; }
+.target-preview { margin-top: 11px; color: #677e55; font-size: 11px; }
 .bottle-board { display: flex; flex-direction: column; gap: 16px; margin: 27px -4px 18px; }
 .bottle-row { display: flex; justify-content: center; gap: 8px; }
 .bottle { flex: 0 0 calc((100% - (var(--columns) - 1) * 8px) / var(--columns)); border: 1px solid transparent; border-radius: 14px; background: transparent; min-width: 0; padding: 7px 2px; transition: background .16s, transform .16s; }
@@ -118,7 +119,7 @@ dialog::backdrop { background: #263c3280; backdrop-filter: blur(3px); }
 .completion-seal { margin: 0 auto 21px; width: 65px; height: 65px; display: grid; place-items: center; border: 1px solid #9ab383; border-radius: 50%; background: #ecf2e2; color: #6d8f55; font-size: 31px; }
 dialog h2 { font-size: 28px; margin: 12px 0; }
 dialog p { color: #7c896e; font-size: 13px; line-height: 1.85; }
-.dialog-actions { display: flex; gap: 10px; justify-content: center; margin-top: 26px; }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 26px; }
 @media(max-width:780px) {
   .shell { padding: 22px 20px; }
   .hero { gap: 10px; }

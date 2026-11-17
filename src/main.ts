@@ -41,7 +41,8 @@ function render(): void {
     const active = current?.session.getSnapshot();
     app.innerHTML = renderHome(active?.phase === 'playing' && current ? { title: current.level.definition.title, moves: active.moveCount } : null);
   } else if (current) {
-    app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart);
+    const nextLevel = BASIC_LEVELS[BASIC_LEVELS.indexOf(current.level) + 1] ?? null;
+    app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel);
   }
   const dialog = app.querySelector<HTMLDialogElement>('dialog');
   if (dialog) dialog.showModal();
@@ -79,6 +80,12 @@ app.addEventListener('click', event => {
   switch (button.dataset.action) {
     case 'home': screen = 'home'; confirmRestart = false; render(); window.scrollTo({ top: 0 }); break;
     case 'continue': if (current) { screen = 'game'; render(); } break;
+    case 'next': {
+      if (!current || current.session.getSnapshot().phase !== 'won') break;
+      const next = BASIC_LEVELS[BASIC_LEVELS.indexOf(current.level) + 1];
+      if (next) start(next);
+      break;
+    }
     case 'cancel': dispatch({ type: 'cancel-selection' }); break;
     case 'restart': confirmRestart = true; render(); break;
     case 'replay': if (current) start(current.level); break;

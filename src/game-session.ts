@@ -11,6 +11,7 @@ export interface LevelDefinition {
   readonly title: string;
   readonly bottles: readonly BottleDefinition[];
   readonly targets: readonly string[];
+  readonly upcomingTargets?: readonly string[];
 }
 
 export type BottleStatus = 'available' | 'ready' | 'collected' | 'ad-locked';
@@ -27,10 +28,12 @@ export interface CollectionReceipt {
 }
 
 export interface SessionSnapshot {
+  readonly sessionId: string;
   readonly levelId: string;
   readonly phase: 'playing' | 'won';
   readonly bottles: readonly BottleView[];
-  readonly targets: readonly { readonly id: string; readonly color: string; readonly fulfilled: boolean }[];
+  readonly targets: readonly { readonly id: string; readonly color: string | null; readonly fulfilled: boolean }[];
+  readonly nextTarget: string | null;
   readonly collected: readonly CollectionReceipt[];
   readonly requiredCollections: number;
   readonly moveCount: number;
@@ -72,10 +75,19 @@ function validateLevel(level: LevelDefinition): void {
   if (level.targets.length !== 3 || level.targets.some(color => typeof color !== 'string' || !color.trim())) {
     throw new Error('Invalid level: exactly three current colour targets are required.');
   }
+  const demand = new Map<string, number>();
+  for (const color of [...level.targets, ...(level.upcomingTargets ?? [])]) {
+    if (typeof color !== 'string' || !color.trim()) throw new Error('Invalid level: target inventory contains an invalid colour.');
+    demand.set(color, (demand.get(color) ?? 0) + 1);
+  }
+  if (demand.size !== inventory.size || [...inventory].some(([color, units]) => demand.get(color) !== units / BOTTLE_CAPACITY)) {
+    throw new Error('Invalid level: target inventory must match bottle colour inventory.');
+  }
 }
 
 export function createGameSession(level: LevelDefinition) {
   validateLevel(level);
+  const sessionId = crypto.randomUUID();
   const levelId = level.id;
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
   const bottles: { id: string; layers: string[]; status: BottleStatus }[] = [
@@ -83,7 +95,9 @@ export function createGameSession(level: LevelDefinition) {
     { id: 'ad-1', layers: [], status: 'ad-locked' },
     { id: 'ad-2', layers: [], status: 'ad-locked' },
   ];
-  const targets = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));
+  const targets: { id: string; color: string | null; fulfilled: boolean }[] = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));
+  const upcomingTargets = [...(level.upcomingTargets ?? [])];
+  let nextTargetIndex = 0;
   const collected: CollectionReceipt[] = [];
   let moveCount = 0;
   let phase: SessionSnapshot['phase'] = 'playing';
@@ -91,27 +105,37 @@ export function createGameSession(level: LevelDefinition) {
 
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
-      levelId, phase, bottles, targets, collected, requiredCollections,
+      sessionId, levelId, phase, bottles, targets,
+      nextTarget: upcomingTargets[nextTargetIndex] ?? null,
+      collected, requiredCollections,
       moveCount, selectedBottleId,
     });
   }
 
   function collectMatchingBottles(events: GameEvent[]): void {
-    for (const bottle of bottles) {
-      if (bottle.status === 'ad-locked' || bottle.status === 'collected') continue;
-      const color = bottle.layers[0];
-      if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer === color)) continue;
-      bottle.status = 'ready';
-      const target = targets.find(slot => !slot.fulfilled && slot.color === color);
-      if (!target) continue;
-      const receipt = { bottleId: bottle.id, color, units: BOTTLE_CAPACITY, slotId: target.id };
-      bottle.layers = [];
-      bottle.status = 'collected';
-      target.fulfilled = true;
-      collected.push(receipt);
-      events.push({ type: 'collected', ...receipt });
-    }
-    if (phase !== 'won' && collected.length === requiredCollections && targets.every(t => t.fulfilled)
+    // Rescan in bottle order after each refill so a waiting full bottle can chain immediately.
+    let matched: boolean;
+    do {
+      matched = false;
+      for (const bottle of bottles) {
+        if (bottle.status === 'ad-locked' || bottle.status === 'collected') continue;
+        const color = bottle.layers[0];
+        if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer === color)) continue;
+        bottle.status = 'ready';
+        const target = targets.find(slot => !slot.fulfilled && slot.color === color);
+        if (!target) continue;
+        const receipt = { bottleId: bottle.id, color, units: BOTTLE_CAPACITY, slotId: target.id };
+        bottle.layers = [];
+        bottle.status = 'collected';
+        target.color = nextTargetIndex < upcomingTargets.length ? upcomingTargets[nextTargetIndex++]! : null;
+        target.fulfilled = target.color === null;
+        collected.push(receipt);
+        events.push({ type: 'collected', ...receipt });
+        matched = true;
+        break;
+      }
+    } while (matched);
+    if (phase !== 'won' && collected.length === requiredCollections && nextTargetIndex >= upcomingTargets.length && targets.every(t => t.fulfilled)
       && bottles.every(b => b.layers.length === 0)) {
       phase = 'won';
       events.push({ type: 'won', levelId });

@@ -56,4 +56,39 @@ export const BASIC_LEVELS: readonly AuthoredLevel[] = [
     version: 1,
     solution: [['A', 'B'], ['B', 'E'], ['A', 'E'], ['C', 'B'], ['D', 'B'], ['C', 'A']],
   },
+  {
+    definition: {
+      id: 'S04', title: '等下一单', targets: ['moss', 'moss', 'moss'], upcomingTargets: ['coral'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'moss'] },
+        { id: 'B', layers: ['moss', 'moss', 'moss'] },
+        { id: 'C', layers: ['moss', 'moss', 'moss'] },
+        { id: 'D', layers: ['moss', 'moss', 'moss'] },
+        { id: 'E', layers: ['coral', 'coral', 'coral', 'coral'] },
+        { id: 'G', layers: [] }, { id: 'H', layers: [] },
+      ],
+    },
+    subtitle: '满瓶也会等待目标',
+    lesson: '珊瑚色已经装满，但当前收集槽没有它。先收取苔绿，下一待分配目标出现后，它会自动收走。',
+    version: 1,
+    solution: [['B', 'A'], ['C', 'B'], ['D', 'C']],
+  },
+  {
+    definition: {
+      id: 'S05', title: '连续收取', targets: ['moss', 'moss', 'moss'], upcomingTargets: ['coral', 'blue'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'moss'] },
+        { id: 'B', layers: ['moss', 'moss', 'moss'] },
+        { id: 'C', layers: ['moss', 'moss', 'moss'] },
+        { id: 'D', layers: ['moss', 'moss', 'moss'] },
+        { id: 'E', layers: ['coral', 'coral', 'coral', 'coral'] },
+        { id: 'F', layers: ['blue', 'blue', 'blue', 'blue'] },
+        { id: 'G', layers: [] }, { id: 'H', layers: [] },
+      ],
+    },
+    subtitle: '一个动作，接连交付',
+    lesson: '两只满瓶正在等候。收取苔绿后，目标依次补位；匹配的瓶子会在同一次动作中连续收走。',
+    version: 1,
+    solution: [['B', 'A'], ['C', 'B'], ['D', 'C']],
+  },
 ];
