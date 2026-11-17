@@ -75,8 +75,8 @@ h1, h2, p { margin: 0; }
 .workbench { background: var(--paper); border: 1px solid #d6ddc9; border-radius: 28px; padding: 24px; box-shadow: 0 18px 60px #5364380d; }
 .bench-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .bench-heading h2 { font-size: 18px; font-weight: 600; margin-top: 8px; }
-.delivery-count { font-size: 29px; color: #638050; }
-.delivery-count small { font-size: 13px; color: #929e83; }
+.collection-count { font-size: 29px; color: #638050; }
+.collection-count small { font-size: 13px; color: #929e83; }
 .progress-track { height: 4px; background: #e7ecdD; border-radius: 4px; margin: 15px 0 19px; overflow: hidden; }
 .progress-track span { display: block; height: 100%; background: #8ba874; }
 .target-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }

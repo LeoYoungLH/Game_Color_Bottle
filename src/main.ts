@@ -11,11 +11,11 @@ const reasons: Record<RejectionReason, string> = {
   'unknown-bottle': '没有找到这个瓶子，请重新选择。',
   'empty-source': '这是一只空瓶。先选有颜色的瓶子，再选它接水。',
   'same-bottle': '请选择另一只瓶子接水。',
-  'locked-bottle': '这个辅助空瓶尚未解锁，请使用其他空瓶。',
+  'locked-bottle': '这个广告空瓶尚未解锁，请使用其他空瓶。',
   'full-target': '目标瓶已经装满，请换一只瓶子。',
   'different-color': '顶层颜色不同，暂时不能倒入。',
-  'completed-source': '这瓶已经装好，正在等待匹配的交付目标。',
-  'collected-bottle': '这瓶已经交付，留下的位置不能再接水。',
+  'completed-source': '这瓶已经装好，正在等待匹配的收集槽。',
+  'collected-bottle': '这瓶已经收取，留下的位置不能再接水。',
   'level-complete': '这一关已经完成，可以回到关卡或再玩一次。',
 };
 
@@ -27,8 +27,8 @@ let confirmRestart = false;
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const receipts = result.events.filter(event => event.type === 'collected');
-  if (result.events.some(event => event.type === 'won')) return '所有颜色已经交付，这一关完成了。';
-  if (receipts.length) return `已交付${receipts.map(event => colorName(event.color)).join('、')}。空出的位置会保留。`;
+  if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
+  if (receipts.length) return `已收取${receipts.map(event => colorName(event.color)).join('、')}。空出的位置会保留。`;
   const poured = result.events.find(event => event.type === 'poured');
   if (poured) return `已从 ${poured.from} 向 ${poured.to} 倒入 ${poured.units} 层。`;
   const selection = result.events.find(event => event.type === 'selection-changed');

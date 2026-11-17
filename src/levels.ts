@@ -21,7 +21,7 @@ export const BASIC_LEVELS: readonly AuthoredLevel[] = [
       ],
     },
     subtitle: '从两层同色开始',
-    lesson: '先选一瓶，再选空瓶或顶层同色的瓶子。装满同一种颜色，就能交付。',
+    lesson: '先选一瓶，再选空瓶或顶层同色的瓶子。装满同一种颜色，匹配的收集槽就会收取它。',
     version: 1,
     solution: [['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
   },
