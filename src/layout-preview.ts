@@ -34,3 +34,17 @@ function render(total: number): void {
 
 const requested = Number(new URLSearchParams(location.search).get('total'));
 render(Number.isInteger(requested) && requested >= 5 && requested <= 24 ? requested : 24);
+
+root.addEventListener('click', event => {
+  const bottle = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.bottle[data-bottle]') : null;
+  if (!bottle || bottle.classList.contains('ad-locked')) return;
+  const selected = bottle.classList.contains('selected');
+  root.querySelectorAll<HTMLButtonElement>('.bottle.selected').forEach(current => {
+    current.classList.remove('selected');
+    current.setAttribute('aria-pressed', 'false');
+  });
+  if (!selected) {
+    bottle.classList.add('selected');
+    bottle.setAttribute('aria-pressed', 'true');
+  }
+});

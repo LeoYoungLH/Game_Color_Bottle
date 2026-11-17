@@ -1,4 +1,9 @@
 export const BOTTLE_CAPACITY = 4;
+export const AD_BOTTLE_IDS = ['ad-1', 'ad-2'] as const;
+
+export function isAdBottleId(id: string): boolean {
+  return AD_BOTTLE_IDS.some(adId => adId === id);
+}
 
 export interface BottleDefinition {
   readonly id: string;
@@ -65,7 +70,7 @@ function validateLevel(level: LevelDefinition): void {
   const inventory = new Map<string, number>();
   for (const bottle of level.bottles) {
     if (!bottle.id.trim() || ids.has(bottle.id)) throw new Error('Invalid level: bottle IDs must be non-empty and unique.');
-    if (bottle.id === 'ad-1' || bottle.id === 'ad-2') throw new Error('Invalid level: ad bottle IDs are reserved.');
+    if (isAdBottleId(bottle.id)) throw new Error('Invalid level: ad bottle IDs are reserved.');
     ids.add(bottle.id);
     if (bottle.layers.length > BOTTLE_CAPACITY) throw new Error('Invalid level: bottle capacity exceeded.');
     for (const color of bottle.layers) {
@@ -96,8 +101,7 @@ export function createGameSession(level: LevelDefinition) {
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
   const bottles: { id: string; layers: string[]; status: BottleStatus }[] = [
     ...level.bottles.map(b => ({ id: b.id, layers: [...b.layers], status: 'available' as const })),
-    { id: 'ad-1', layers: [], status: 'ad-locked' },
-    { id: 'ad-2', layers: [], status: 'ad-locked' },
+    ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], status: 'ad-locked' as const })),
   ];
   const collectionOrder = [...bottles].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const targets: { id: string; color: string | null; fulfilled: boolean }[] = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));

@@ -1,4 +1,4 @@
-import type { BottleView, SessionSnapshot } from './game-session.ts';
+import { AD_BOTTLE_IDS, isAdBottleId, type BottleView, type SessionSnapshot } from './game-session.ts';
 import { BASIC_LEVELS, type AuthoredLevel } from './levels.ts';
 
 const COLORS: Record<string, { name: string; hex: string; symbol: string }> = {
@@ -32,7 +32,7 @@ export function renderHome(active: { title: string; moves: number } | null): str
 function renderBottle(bottle: BottleView, selected: boolean, dense: boolean): string {
   const empty = bottle.layers.length === 0;
   const top = bottle.layers.at(-1);
-  const ad = bottle.id === 'ad-1' || bottle.id === 'ad-2';
+  const ad = isAdBottleId(bottle.id);
   const label = bottle.status === 'ad-locked' ? `广告空瓶 ${bottle.id}，尚未解锁`
     : bottle.status === 'collected' ? `瓶 ${bottle.id}，已收取`
     : `瓶 ${bottle.id}，${empty ? '空瓶' : `顶层${colorName(top!)}`}，${bottle.layers.length}/4`;
@@ -51,9 +51,9 @@ export function layoutBottleRows(bottles: readonly BottleView[]): { columns: num
   const total = bottles.length;
   const columns = total >= 22 ? 8 : total >= 19 ? 7 : total >= 12 ? 6 : Math.min(6, Math.ceil(total / 2));
   const counts = total <= 11 ? [columns, total - columns] : [columns, columns, total - columns * 2].filter(count => count > 0);
-  const ads = ['ad-1', 'ad-2'].map(id => bottles.find(b => b.id === id));
+  const ads = AD_BOTTLE_IDS.map(id => bottles.find(b => b.id === id));
   if (ads.some(b => !b)) throw new Error('Board requires exactly two ad bottle positions.');
-  const ordinary = bottles.filter(b => b.id !== 'ad-1' && b.id !== 'ad-2');
+  const ordinary = bottles.filter(b => !isAdBottleId(b.id));
   const adRow = counts.findLastIndex(count => count >= 2);
   let offset = 0;
   const rows = counts.map((count, index) => {
