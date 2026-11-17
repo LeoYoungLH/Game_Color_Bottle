@@ -12,6 +12,7 @@ export interface BottleDefinition {
   /** Zero-based positions from bottom to top that start concealed. */
   readonly hiddenLayers?: readonly number[];
   readonly sealThreshold?: number;
+  readonly receiveOnly?: boolean;
 }
 
 export interface LevelDefinition {
@@ -22,13 +23,14 @@ export interface LevelDefinition {
   readonly upcomingTargets?: readonly string[];
 }
 
-export type BottleStatus = 'available' | 'ready' | 'collected' | 'ad-locked' | 'sealed';
+export type BottleStatus = 'available' | 'ready' | 'collected' | 'ad-locked' | 'sealed' | 'receive-only';
 
 export interface BottleView {
   readonly id: string;
   readonly layers: readonly (string | null)[];
   readonly status: BottleStatus;
   readonly sealThreshold?: number;
+  readonly receiveOnly?: boolean;
 }
 
 interface LayerState {
@@ -63,11 +65,12 @@ export type PlayerAction =
   | { readonly type: 'select-bottle'; readonly bottleId: string }
   | { readonly type: 'cancel-selection' }
   | { readonly type: 'set-feedback'; readonly kind: FeedbackKind; readonly enabled: boolean };
-export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete';
+export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
   | { readonly type: 'revealed'; readonly bottleId: string; readonly color: string }
   | { readonly type: 'unsealed'; readonly bottleId: string; readonly threshold: number }
+  | { readonly type: 'released'; readonly bottleId: string }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -88,6 +91,10 @@ function validateLevel(level: LevelDefinition): void {
     if (bottle.layers.length > BOTTLE_CAPACITY) throw new Error('Invalid level: bottle capacity exceeded.');
     if (bottle.sealThreshold !== undefined && (!Number.isInteger(bottle.sealThreshold) || bottle.sealThreshold <= 0 || !bottle.layers.length)) {
       throw new Error('Invalid level: sealed bottles need contents and a positive integer threshold.');
+    }
+    if (bottle.receiveOnly && (!bottle.layers.length || bottle.layers.length === BOTTLE_CAPACITY
+      || bottle.layers.some(color => color !== bottle.layers[0]) || bottle.hiddenLayers?.length || bottle.sealThreshold !== undefined)) {
+      throw new Error('Invalid level: receive-only bottles need known, partially filled single-colour contents without a seal.');
     }
     const hidden = bottle.hiddenLayers ?? [];
     if (!Array.isArray(hidden) || hidden.some(index => !Number.isInteger(index) || index < 0 || index >= bottle.layers.length)
@@ -123,8 +130,8 @@ export function createGameSession(level: LevelDefinition) {
   const sessionId = crypto.randomUUID();
   const levelId = level.id;
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
-  const bottles: { id: string; layers: LayerState[]; status: BottleStatus; sealThreshold?: number }[] = [
-    ...level.bottles.map(b => ({ id: b.id, layers: b.layers.map((color, index) => ({ color, revealed: !b.hiddenLayers?.includes(index) })), status: b.sealThreshold === undefined ? 'available' as const : 'sealed' as const, ...(b.sealThreshold === undefined ? {} : { sealThreshold: b.sealThreshold }) })),
+  const bottles: { id: string; layers: LayerState[]; status: BottleStatus; sealThreshold?: number; receiveOnly?: boolean }[] = [
+    ...level.bottles.map(b => ({ id: b.id, layers: b.layers.map((color, index) => ({ color, revealed: !b.hiddenLayers?.includes(index) })), status: b.sealThreshold !== undefined ? 'sealed' as const : b.receiveOnly ? 'receive-only' as const : 'available' as const, ...(b.sealThreshold === undefined ? {} : { sealThreshold: b.sealThreshold }), ...(b.receiveOnly ? { receiveOnly: true } : {}) })),
     ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], status: 'ad-locked' as const })),
   ];
   const collectionOrder = [...bottles].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -140,7 +147,7 @@ export function createGameSession(level: LevelDefinition) {
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
       sessionId, levelId, phase,
-      bottles: bottles.map(b => ({ id: b.id, layers: b.layers.map(layer => b.status === 'sealed' ? null : layer.revealed ? layer.color : null), status: b.status, ...(b.sealThreshold === undefined ? {} : { sealThreshold: b.sealThreshold }) })),
+      bottles: bottles.map(b => ({ id: b.id, layers: b.layers.map(layer => b.status === 'sealed' ? null : layer.revealed ? layer.color : null), status: b.status, ...(b.sealThreshold === undefined ? {} : { sealThreshold: b.sealThreshold }), ...(b.receiveOnly ? { receiveOnly: true } : {}) })),
       targets,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
@@ -154,7 +161,7 @@ export function createGameSession(level: LevelDefinition) {
     do {
       matched = false;
       for (const bottle of collectionOrder) {
-        if (bottle.status === 'ad-locked' || bottle.status === 'collected' || bottle.status === 'sealed') continue;
+        if (bottle.status === 'ad-locked' || bottle.status === 'collected' || bottle.status === 'sealed' || bottle.status === 'receive-only') continue;
         const color = bottle.layers[0]?.color;
         if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer.color === color)) continue;
         bottle.status = 'ready';
@@ -200,6 +207,7 @@ export function createGameSession(level: LevelDefinition) {
       if (!bottle) return { accepted: false, reason: 'unknown-bottle', events: [] };
       if (bottle.status === 'ad-locked') return { accepted: false, reason: 'locked-bottle', events: [] };
       if (bottle.status === 'sealed') return { accepted: false, reason: 'sealed-bottle', events: [] };
+      if (bottle.status === 'receive-only') return { accepted: false, reason: 'receive-only-source', events: [] };
       if (bottle.status === 'collected') return { accepted: false, reason: 'collected-bottle', events: [] };
       if (bottle.status === 'ready') return { accepted: false, reason: 'completed-source', events: [] };
       if (!bottle.layers.length) return { accepted: false, reason: 'empty-source', events: [] };
@@ -212,6 +220,7 @@ export function createGameSession(level: LevelDefinition) {
     if (source === target) return { accepted: false, reason: 'same-bottle', events: [] };
     if (source.status === 'ad-locked' || target.status === 'ad-locked') return { accepted: false, reason: 'locked-bottle', events: [] };
     if (source.status === 'sealed' || target.status === 'sealed') return { accepted: false, reason: 'sealed-bottle', events: [] };
+    if (source.status === 'receive-only') return { accepted: false, reason: 'receive-only-source', events: [] };
     if (source.status === 'collected' || target.status === 'collected') return { accepted: false, reason: 'collected-bottle', events: [] };
     if (source.status === 'ready') return { accepted: false, reason: 'completed-source', events: [] };
     const color = source.layers.at(-1)?.color;
@@ -229,6 +238,10 @@ export function createGameSession(level: LevelDefinition) {
     if (exposed && !exposed.revealed) {
       exposed.revealed = true;
       events.push({ type: 'revealed', bottleId: source.id, color: exposed.color });
+    }
+    if (target.status === 'receive-only' && target.layers.length === BOTTLE_CAPACITY && target.layers.every(layer => layer.color === color)) {
+      target.status = 'available';
+      events.push({ type: 'released', bottleId: target.id });
     }
     collectMatchingBottles(events);
     return { accepted: true, events };

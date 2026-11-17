@@ -157,4 +157,39 @@ export const BASIC_LEVELS: readonly AuthoredLevel[] = [
     version: 1,
     solution: [['B', 'A'], ['C', 'B'], ['D', 'C']],
   },
+  {
+    definition: {
+      id: 'S10', title: '只能接水', targets: ['moss', 'coral', 'blue'], upcomingTargets: ['honey'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'coral', 'coral'] },
+        { id: 'B', layers: ['coral', 'coral', 'blue', 'blue'] },
+        { id: 'C', layers: ['blue', 'blue', 'moss', 'moss'] },
+        { id: 'D', layers: [] }, { id: 'E', layers: [] },
+        { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true },
+        { id: 'J', layers: ['honey'] },
+      ],
+    },
+    subtitle: '装满后解除固定',
+    lesson: '定色瓶 I 只能接水。先把 J 的蜜黄倒给 I，装满后解除固定；没有匹配目标时会原地待收。',
+    version: 1,
+    solution: [['J', 'I'], ['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
+  },
+  {
+    definition: {
+      id: 'S11', title: '分别固定', targets: ['moss', 'coral', 'blue'], upcomingTargets: ['honey', 'violet'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'coral', 'coral'] },
+        { id: 'B', layers: ['coral', 'coral', 'blue', 'blue'] },
+        { id: 'C', layers: ['blue', 'blue', 'moss', 'moss'] },
+        { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true },
+        { id: 'K', layers: ['violet', 'violet', 'violet'], receiveOnly: true },
+        { id: 'J', layers: ['honey'] }, { id: 'L', layers: ['violet'] },
+        { id: 'D', layers: [] }, { id: 'E', layers: [] },
+      ],
+    },
+    subtitle: '同一排，各自解除',
+    lesson: 'I 与 K 同在一行，却各自固定。先装满 I，观察 K 仍只能接水，再把 L 的紫色倒给 K。',
+    version: 1,
+    solution: [['J', 'I'], ['L', 'K'], ['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
+  },
 ];

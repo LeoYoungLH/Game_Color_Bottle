@@ -535,3 +535,114 @@ test('changing a level threshold after session creation cannot open its seal ear
   assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'sealed');
   assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.sealThreshold, 2);
 });
+
+test('a receive-only bottle accepts matching colour but cannot pour before completion', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [
+      ...opening.bottles,
+      { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true },
+      { id: 'J', layers: ['honey'] },
+    ],
+    upcomingTargets: ['honey'],
+  });
+  const initial = session.getSnapshot();
+  assert.deepEqual(initial.bottles.find(b => b.id === 'I'), {
+    id: 'I', layers: ['honey', 'honey', 'honey'], status: 'receive-only', receiveOnly: true,
+  });
+  assert.deepEqual(session.dispatch({ type: 'select-bottle', bottleId: 'I' }), {
+    accepted: false, reason: 'receive-only-source', events: [],
+  });
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'I', to: 'E' }), {
+    accepted: false, reason: 'receive-only-source', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), initial);
+  const filled = session.dispatch({ type: 'pour', from: 'J', to: 'I' });
+  assert.deepEqual(filled.events, [
+    { type: 'poured', from: 'J', to: 'I', units: 1 },
+    { type: 'released', bottleId: 'I' },
+  ]);
+  const waiting = session.getSnapshot();
+  assert.equal(waiting.bottles.find(b => b.id === 'I')?.status, 'ready');
+  assert.equal(waiting.collected.length, 0);
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'I', to: 'J' }), {
+    accepted: false, reason: 'completed-source', events: [],
+  });
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  const chain = session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  assert.deepEqual(chain.events.flatMap(event => event.type === 'collected' ? [event.bottleId] : []), ['A', 'I']);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'collected');
+});
+
+test('two receive-only bottles release independently and never become free transit space', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [
+      ...opening.bottles,
+      { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true },
+      { id: 'K', layers: ['violet', 'violet', 'violet'], receiveOnly: true },
+      { id: 'J', layers: ['honey'] }, { id: 'L', layers: ['violet'] },
+    ],
+    upcomingTargets: ['honey', 'violet'],
+  });
+  const before = session.getSnapshot();
+  const first = session.dispatch({ type: 'pour', from: 'J', to: 'I' });
+  assert.deepEqual(first.events, [
+    { type: 'poured', from: 'J', to: 'I', units: 1 },
+    { type: 'released', bottleId: 'I' },
+  ]);
+  const halfway = session.getSnapshot();
+  assert.deepEqual(halfway.bottles.map(b => b.id), before.bottles.map(b => b.id));
+  assert.equal(halfway.bottles.find(b => b.id === 'I')?.status, 'ready');
+  assert.equal(halfway.bottles.find(b => b.id === 'K')?.status, 'receive-only');
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'K', to: 'J' }), {
+    accepted: false, reason: 'receive-only-source', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), halfway);
+  const second = session.dispatch({ type: 'pour', from: 'L', to: 'K' });
+  assert.deepEqual(second.events, [
+    { type: 'poured', from: 'L', to: 'K', units: 1 },
+    { type: 'released', bottleId: 'K' },
+  ]);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'K')?.status, 'ready');
+  assert.equal(session.getSnapshot().bottles.filter(b => b.status === 'ad-locked').length, 2);
+  assert.equal(session.getSnapshot().bottles.filter(b => b.status === 'available' && b.layers.length === 0).length >= 2, true);
+});
+
+test('receive-only level data must start known, partial, monochrome and unsealed', () => {
+  const withFixed = (bottle: object) => createGameSession({
+    ...opening,
+    bottles: [...opening.bottles, { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], ...bottle }],
+    upcomingTargets: ['honey'],
+  });
+  assert.throws(() => withFixed({ layers: [], receiveOnly: true }), /receive-only/);
+  assert.throws(() => withFixed({ receiveOnly: true }), /receive-only/);
+  assert.throws(() => withFixed({ layers: ['honey', 'honey', 'coral'], receiveOnly: true }), /receive-only/);
+  assert.throws(() => withFixed({ layers: ['honey', 'honey', 'honey'], hiddenLayers: [0], receiveOnly: true }), /receive-only/);
+  assert.throws(() => withFixed({ layers: ['honey', 'honey', 'honey'], sealThreshold: 2, receiveOnly: true }), /receive-only/);
+});
+
+test('a matching receive-only bottle releases and collects exactly once in the same pour', () => {
+  const fixed = { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true };
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles, fixed, { id: 'J', layers: ['honey'] }],
+    targets: ['moss', 'coral', 'honey'], upcomingTargets: ['blue'],
+  });
+  const before = session.getSnapshot();
+  fixed.receiveOnly = false;
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'A', to: 'I' }), {
+    accepted: false, reason: 'different-color', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), before);
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'J', to: 'I' }).events, [
+    { type: 'poured', from: 'J', to: 'I', units: 1 },
+    { type: 'released', bottleId: 'I' },
+    { type: 'collected', bottleId: 'I', color: 'honey', units: 4, slotId: 'slot-3' },
+  ]);
+  const after = session.getSnapshot();
+  assert.equal(after.collected.length, 1);
+  assert.equal(after.bottles.find(b => b.id === 'I')?.status, 'collected');
+  assert.equal(after.bottles.find(b => b.id === 'I')?.receiveOnly, true);
+  assert.deepEqual(after.bottles.map(b => b.id), before.bottles.map(b => b.id));
+});

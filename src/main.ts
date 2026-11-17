@@ -14,6 +14,7 @@ const reasons: Record<RejectionReason, string> = {
   'same-bottle': '请选择另一只瓶子接水。',
   'locked-bottle': '这个广告空瓶尚未解锁，请使用其他空瓶。',
   'sealed-bottle': '封签还未开启。先收取足够数量的满瓶。',
+  'receive-only-source': '定色瓶只能接水，装满同色后才会解除固定。',
   'full-target': '目标瓶已经装满，请换一只瓶子。',
   'different-color': '顶层颜色不同，暂时不能倒入。',
   'completed-source': '这瓶已经装好，正在等待匹配的收集槽。',
@@ -58,6 +59,8 @@ function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
+  const released = result.events.filter(event => event.type === 'released');
+  if (released.length) return `${released.map(event => `定色瓶 ${event.bottleId} 已解除固定`).join('、')}。${receipts.length ? `已收取${receipts.map(event => colorName(event.color)).join('、')}。` : '单色满瓶等待匹配目标。'}`;
   const unsealed = result.events.filter(event => event.type === 'unsealed');
   if (unsealed.length) return `${unsealed.map(event => `封签瓶 ${event.bottleId} 已开启`).join('、')}。${receipts.length ? `已收取${receipts.map(event => colorName(event.color)).join('、')}。` : ''}`;
   if (receipts.length) return `已收取${receipts.map(event => colorName(event.color)).join('、')}。空出的位置会保留。`;

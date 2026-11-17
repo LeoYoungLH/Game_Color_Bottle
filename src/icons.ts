@@ -1,4 +1,5 @@
 import arrowLeft from 'lucide-static/icons/arrow-left.svg?raw';
+import arrowDown from 'lucide-static/icons/arrow-down.svg?raw';
 import arrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
 import rotateCcw from 'lucide-static/icons/rotate-ccw.svg?raw';
@@ -10,7 +11,7 @@ import volumeX from 'lucide-static/icons/volume-x.svg?raw';
 import x from 'lucide-static/icons/x.svg?raw';
 
 const icons: Record<string, string> = {
-  'arrow-left': arrowLeft, 'arrow-right': arrowRight, 'chevron-right': chevronRight,
+  'arrow-left': arrowLeft, 'arrow-down': arrowDown, 'arrow-right': arrowRight, 'chevron-right': chevronRight,
   'rotate-ccw': rotateCcw, vibrate, 'vibrate-off': vibrateOff,
   video, 'volume-2': volume2, 'volume-x': volumeX, x,
 };
