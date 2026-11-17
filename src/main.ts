@@ -1,6 +1,6 @@
 import './style.css';
 import { hydrateIcons } from './icons.ts';
-import { createGameSession, type ActionResult, type PlayerAction, type RejectionReason } from './game-session.ts';
+import { createGameSession, isAdOutcome, type ActionResult, type PlayerAction, type RejectionReason } from './game-session.ts';
 import { BASIC_LEVELS, type AuthoredLevel } from './levels.ts';
 import { colorName, renderGame, renderHome } from './view.ts';
 
@@ -123,7 +123,7 @@ app.addEventListener('click', event => {
   const pending = current?.session.getSnapshot().pendingAd;
   if (pending) {
     const outcome = button.dataset.outcome;
-    if (button.dataset.action === 'ad-result' && (outcome === 'success' || outcome === 'cancelled' || outcome === 'failed' || outcome === 'unavailable')) {
+    if (button.dataset.action === 'ad-result' && isAdOutcome(outcome)) {
       dispatch({ type: 'resolve-ad', request: pending, outcome });
     }
     return;

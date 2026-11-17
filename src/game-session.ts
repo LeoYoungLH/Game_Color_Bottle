@@ -53,7 +53,12 @@ export interface AdBottleRequest {
   readonly requestId: string;
 }
 
-export type AdOutcome = 'success' | 'cancelled' | 'failed' | 'unavailable';
+export const AD_OUTCOMES = ['success', 'cancelled', 'failed', 'unavailable'] as const;
+export type AdOutcome = (typeof AD_OUTCOMES)[number];
+
+export function isAdOutcome(value: unknown): value is AdOutcome {
+  return AD_OUTCOMES.some(outcome => outcome === value);
+}
 
 export interface SessionSnapshot {
   readonly sessionId: string;
@@ -210,7 +215,7 @@ export function createGameSession(level: LevelDefinition) {
   function dispatch(action: PlayerAction): ActionResult {
     if (action.type === 'resolve-ad') {
       const request = action.request;
-      if (action.outcome !== 'success' && action.outcome !== 'cancelled' && action.outcome !== 'failed' && action.outcome !== 'unavailable') {
+      if (!isAdOutcome(action.outcome)) {
         return { accepted: false, reason: 'stale-ad-result', events: [] };
       }
       if (!pendingAd || request.reward !== pendingAd.reward || request.bottleId !== pendingAd.bottleId

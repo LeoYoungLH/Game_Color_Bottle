@@ -1,4 +1,4 @@
-import { AD_BOTTLE_IDS, isAdBottleId, type BottleView, type SessionSnapshot } from './game-session.ts';
+import { AD_BOTTLE_IDS, AD_OUTCOMES, isAdBottleId, type AdOutcome, type BottleView, type SessionSnapshot } from './game-session.ts';
 import { BASIC_LEVELS, type AuthoredLevel } from './levels.ts';
 
 const COLORS: Record<string, { name: string; hex: string; symbol: string }> = {
@@ -7,6 +7,10 @@ const COLORS: Record<string, { name: string; hex: string; symbol: string }> = {
   blue: { name: '靛蓝', hex: '#73a9dc', symbol: '▲' },
   honey: { name: '蜜黄', hex: '#e5bc64', symbol: '■' },
   violet: { name: '紫藤', hex: '#b995d8', symbol: '★' },
+};
+
+const AD_RESULT_LABELS: Record<AdOutcome, string> = {
+  success: '模拟成功', cancelled: '提前关闭', failed: '加载失败', unavailable: '无可用广告',
 };
 
 export function colorName(color: string): string {
@@ -93,6 +97,6 @@ export function renderGame(level: AuthoredLevel, snapshot: SessionSnapshot, noti
     </div>
     ${won ? `<dialog class="completion-dialog" id="completion-dialog" aria-labelledby="completion-title"><span class="completion-seal" aria-hidden="true">✓</span><span class="section-label">${escape(level.definition.id)} · 收取完成</span><h2 id="completion-title">${nextLevel ? '本关完成' : '本版验证关卡完成'}</h2><p>${snapshot.requiredCollections} 瓶已收取 · ${snapshot.moveCount} 次倒水</p><div class="dialog-actions">${nextLevel ? `<button class="primary" data-action="next">进入 ${escape(nextLevel.definition.id)} <i data-lucide="arrow-right" aria-hidden="true"></i></button>` : ''}<button class="secondary" data-action="home">返回关卡</button><button class="secondary" data-action="replay">再玩一次</button></div></dialog>` : ''}
     ${confirmRestart && !won ? '<dialog class="restart-dialog" id="restart-dialog" aria-labelledby="restart-title"><h2 id="restart-title">重新开始？</h2><p>本关颜色将回到开局状态。</p><div class="dialog-actions"><button class="primary" data-action="replay">重新开始</button><button class="secondary" data-action="keep-playing">继续当前局</button></div></dialog>' : ''}
-    ${snapshot.pendingAd ? `<dialog class="ad-dialog" aria-labelledby="ad-title"><span class="section-label">模拟广告 · ${escape(snapshot.pendingAd.bottleId)}</span><h2 id="ad-title">解锁广告空瓶</h2><p>规则验证模式，不播放真实广告。</p><div class="dialog-actions"><button class="primary" data-action="ad-result" data-outcome="success">模拟成功</button><button class="secondary" data-action="ad-result" data-outcome="cancelled">提前关闭</button><button class="secondary" data-action="ad-result" data-outcome="failed">加载失败</button><button class="secondary" data-action="ad-result" data-outcome="unavailable">无可用广告</button></div></dialog>` : ''}
+    ${snapshot.pendingAd ? `<dialog class="ad-dialog" aria-labelledby="ad-title"><span class="section-label">模拟广告 · ${escape(snapshot.pendingAd.bottleId)}</span><h2 id="ad-title">解锁广告空瓶</h2><p>规则验证模式，不播放真实广告。</p><div class="dialog-actions">${AD_OUTCOMES.map(outcome => `<button class="${outcome === 'success' ? 'primary' : 'secondary'}" data-action="ad-result" data-outcome="${outcome}">${AD_RESULT_LABELS[outcome]}</button>`).join('')}</div></dialog>` : ''}
   </main>`;
 }
