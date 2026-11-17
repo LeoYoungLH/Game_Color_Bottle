@@ -29,6 +29,11 @@ export interface BottleView {
   readonly status: BottleStatus;
 }
 
+interface LayerState {
+  color: string;
+  revealed: boolean;
+}
+
 export interface CollectionReceipt {
   readonly bottleId: string;
   readonly color: string;
@@ -108,9 +113,9 @@ export function createGameSession(level: LevelDefinition) {
   const sessionId = crypto.randomUUID();
   const levelId = level.id;
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
-  const bottles: { id: string; layers: string[]; revealed: boolean[]; status: BottleStatus }[] = [
-    ...level.bottles.map(b => ({ id: b.id, layers: [...b.layers], revealed: b.layers.map((_, index) => !b.hiddenLayers?.includes(index)), status: 'available' as const })),
-    ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], revealed: [], status: 'ad-locked' as const })),
+  const bottles: { id: string; layers: LayerState[]; status: BottleStatus }[] = [
+    ...level.bottles.map(b => ({ id: b.id, layers: b.layers.map((color, index) => ({ color, revealed: !b.hiddenLayers?.includes(index) })), status: 'available' as const })),
+    ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], status: 'ad-locked' as const })),
   ];
   const collectionOrder = [...bottles].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const targets: { id: string; color: string | null; fulfilled: boolean }[] = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));
@@ -125,7 +130,7 @@ export function createGameSession(level: LevelDefinition) {
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
       sessionId, levelId, phase,
-      bottles: bottles.map(b => ({ id: b.id, layers: b.layers.map((color, index) => b.revealed[index] ? color : null), status: b.status })),
+      bottles: bottles.map(b => ({ id: b.id, layers: b.layers.map(layer => layer.revealed ? layer.color : null), status: b.status })),
       targets,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
@@ -140,14 +145,13 @@ export function createGameSession(level: LevelDefinition) {
       matched = false;
       for (const bottle of collectionOrder) {
         if (bottle.status === 'ad-locked' || bottle.status === 'collected') continue;
-        const color = bottle.layers[0];
-        if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer === color)) continue;
+        const color = bottle.layers[0]?.color;
+        if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer.color === color)) continue;
         bottle.status = 'ready';
         const target = targets.find(slot => !slot.fulfilled && slot.color === color);
         if (!target) continue;
         const receipt = { bottleId: bottle.id, color, units: BOTTLE_CAPACITY, slotId: target.id };
         bottle.layers = [];
-        bottle.revealed = [];
         bottle.status = 'collected';
         target.color = nextTargetIndex < upcomingTargets.length ? upcomingTargets[nextTargetIndex++]! : null;
         target.fulfilled = target.color === null;
@@ -193,22 +197,21 @@ export function createGameSession(level: LevelDefinition) {
     if (source.status === 'ad-locked' || target.status === 'ad-locked') return { accepted: false, reason: 'locked-bottle', events: [] };
     if (source.status === 'collected' || target.status === 'collected') return { accepted: false, reason: 'collected-bottle', events: [] };
     if (source.status === 'ready') return { accepted: false, reason: 'completed-source', events: [] };
-    const color = source.layers.at(-1);
+    const color = source.layers.at(-1)?.color;
     if (!color) return { accepted: false, reason: 'empty-source', events: [] };
     if (target.layers.length === BOTTLE_CAPACITY) return { accepted: false, reason: 'full-target', events: [] };
-    if (target.layers.length && target.layers.at(-1) !== color) return { accepted: false, reason: 'different-color', events: [] };
+    if (target.layers.length && target.layers.at(-1)?.color !== color) return { accepted: false, reason: 'different-color', events: [] };
     let segment = 0;
-    for (let index = source.layers.length - 1; index >= 0 && source.layers[index] === color; index--) segment++;
+    for (let index = source.layers.length - 1; index >= 0 && source.layers[index]?.color === color; index--) segment++;
     const units = Math.min(segment, BOTTLE_CAPACITY - target.layers.length);
-    target.layers.push(...source.layers.splice(source.layers.length - units, units));
-    source.revealed.splice(source.revealed.length - units, units);
-    target.revealed.push(...Array<boolean>(units).fill(true));
+    target.layers.push(...source.layers.splice(source.layers.length - units, units).map(layer => ({ color: layer.color, revealed: true })));
     moveCount++;
     selectedBottleId = null;
     const events: GameEvent[] = [{ type: 'poured', from: source.id, to: target.id, units }];
-    if (source.layers.length && !source.revealed.at(-1)) {
-      source.revealed[source.revealed.length - 1] = true;
-      events.push({ type: 'revealed', bottleId: source.id, color: source.layers.at(-1)! });
+    const exposed = source.layers.at(-1);
+    if (exposed && !exposed.revealed) {
+      exposed.revealed = true;
+      events.push({ type: 'revealed', bottleId: source.id, color: exposed.color });
     }
     collectMatchingBottles(events);
     return { accepted: true, events };

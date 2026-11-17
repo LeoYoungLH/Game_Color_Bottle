@@ -355,3 +355,28 @@ test('failed pours and later edits to level data cannot reveal an unknown layer'
   });
   assert.deepEqual(session.getSnapshot(), before);
 });
+
+test('hidden-level witness routes use visible top colours at every decision fork', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const cases = [
+    { id: 'S06', reveals: { 0: ['A', 'moss'], 2: ['B', 'coral'] } },
+    { id: 'S07', reveals: { 0: ['A', 'moss'], 1: ['C', 'blue'], 2: ['B', 'coral'] } },
+  ];
+  for (const example of cases) {
+    const level = BASIC_LEVELS.find(candidate => candidate.definition.id === example.id)!;
+    const session = createGameSession(level.definition);
+    for (const [step, [from, to]] of level.solution.entries()) {
+      const before = session.getSnapshot();
+      const source = before.bottles.find(b => b.id === from)!;
+      const target = before.bottles.find(b => b.id === to)!;
+      const visibleTop = source.layers.at(-1);
+      assert.equal(typeof visibleTop, 'string', `${example.id} step ${step + 1} must not need an unknown source colour`);
+      assert.ok(target.layers.length === 0 || target.layers.at(-1) === visibleTop);
+      const result = session.dispatch({ type: 'pour', from, to });
+      assert.equal(result.accepted, true);
+      const expected = Object.entries(example.reveals).find(([index]) => Number(index) === step)?.[1];
+      assert.deepEqual(result.events.filter(event => event.type === 'revealed').map(event => [event.bottleId, event.color]), expected ? [expected] : []);
+    }
+    assert.equal(session.getSnapshot().phase, 'won');
+  }
+});
