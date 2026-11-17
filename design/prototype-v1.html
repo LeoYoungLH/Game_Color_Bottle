@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拾色工坊 · V1 设计与规则沙盘</title>
+<style>
+:root{--ink:#253e35;--muted:#6b786d;--paper:#faf8ef;--line:#d8dfd3;--green:#527b63;--soft:#e8eee4;--gold:#bc8e42;--shadow:0 20px 55px #2c443315}*{box-sizing:border-box}body{margin:0;background:#eff1e9;color:var(--ink);font:15px/1.65 "Segoe UI","Microsoft YaHei",sans-serif}button{font:inherit;cursor:pointer;color:inherit}button:focus-visible{outline:3px solid #427760;outline-offset:3px}button:disabled{opacity:.45;cursor:default}main{max-width:1180px;margin:auto;padding:36px 28px 50px}h1,h2,h3,p{margin:0}h1{font-size:44px;line-height:1.25;letter-spacing:-1px;font-weight:650}h2{font-size:23px;line-height:1.4}h3{font-size:16px}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:#748171;text-transform:uppercase}.hero{display:flex;justify-content:space-between;gap:30px;margin:16px 0 32px;align-items:flex-end}.hero p{max-width:630px;color:var(--muted);margin-top:14px}.stamp{padding:9px 15px;border:1px solid #bac9b8;border-radius:24px;font-size:12px;white-space:nowrap}.layout{display:grid;grid-template-columns:minmax(340px,440px) 1fr;gap:32px;align-items:start}.artboard{padding:20px 30px;background:#e2e7da;border:1px solid #d4dbca;border-radius:28px;position:relative}.art-label{font-size:11px;letter-spacing:1.3px;margin:0 0 14px;color:#6a7963;text-align:center}.phone{max-width:370px;margin:auto;border:1px solid #d2d8c8;border-radius:32px;background:var(--paper);box-shadow:var(--shadow);padding:23px 19px 20px;overflow:hidden}.brand{display:flex;justify-content:space-between;align-items:center}.brand strong{font-size:22px;letter-spacing:2px}.brand small{font-size:11px;color:var(--muted)}.brand-mark{width:30px;height:30px;border:1px solid #66856c;border-radius:50%;display:grid;place-items:center;font-size:17px}.level-line{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;font-size:12px;color:#6c7a68}.progress{height:4px;background:#e6eadf;border-radius:5px;overflow:hidden}.progress span{height:100%;display:block;background:#718f62;transition:width .2s}.tray-head{display:flex;justify-content:space-between;margin-top:18px;font-size:11px;font-weight:600;color:#63735f}.orders{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}.order{height:86px;border:1px solid #d4dcce;border-radius:10px;background:white;padding:9px;text-align:center;border-top:4px solid var(--c)}.order.done{opacity:.5;border-top-color:#b5c3ac}.order strong{font-size:12px;display:block}.order .order-symbol{font-size:20px;line-height:1.1;color:var(--c)}.order small{font-size:9px;color:#7b8477}.board{display:grid;grid-template-columns:repeat(4,1fr);gap:13px 4px;margin:24px -3px 8px}.bottle{border:0;background:transparent;padding:3px 0;min-height:159px;border-radius:12px;position:relative}.bottle.selected{background:#e5eddf;box-shadow:inset 0 0 0 2px #658467}.bottle .id{font-size:10px;color:#778473}.bottle .tag{font-size:9px;display:block;line-height:18px;white-space:nowrap;margin-top:5px}.vessel{position:relative;width:54px;height:104px;margin:3px auto 0}.neck{position:absolute;top:1px;left:15px;width:25px;height:20px;border:2px solid #91a69c;border-radius:5px 5px 1px 1px;background:#f9fcf7}.body{position:absolute;top:16px;bottom:0;width:54px;border:2px solid #90a39a;border-radius:13px 13px 15px 15px;background:linear-gradient(100deg,#ffffffb0,#e4ece880 65%,#f9fcf999);overflow:hidden}.body:after{content:"";position:absolute;left:5px;top:10px;bottom:10px;width:3px;border-radius:2px;background:#ffffff99;pointer-events:none}.liquid{position:absolute;inset:7px 5px 6px;display:flex;flex-direction:column-reverse;justify-content:flex-start;border-radius:8px;overflow:hidden}.layer{height:25%;flex-shrink:0;display:flex;justify-content:center;align-items:center;background:var(--c);color:#fff;font-size:10px;border-top:1px solid #ffffff38}.clamp{position:absolute;bottom:-3px;left:-4px;right:-4px;height:19px;border:2px solid #b48c4b;border-top:0;border-radius:0 0 10px 10px;background:#d5b56a55;display:flex;align-items:flex-end;justify-content:center;color:#876025;font-size:12px;font-weight:800}.cap{position:absolute;width:28px;left:13px;top:0;height:9px;border-radius:3px;background:#aa8054;z-index:3}.sleeve{position:absolute;inset:14px -2px -1px;border-radius:12px 12px 14px 14px;background:repeating-linear-gradient(140deg,#eee7d7,#eee7d7 8px,#f4eddf 8px,#f4eddf 16px);border:1px solid #c9b78e;z-index:4;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:10px;color:#816d43}.sleeve strong{font-size:17px;margin-bottom:3px}.empty-position{height:104px;width:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:3px auto 0;border:1px dashed #c8d3bf;border-radius:12px;color:#8b9b81;font-size:18px}.empty-position small{font-size:9px}.notice{min-height:54px;background:#edf1e6;border:1px solid #dce5d1;border-radius:10px;padding:9px 10px;font-size:11px;line-height:1.65;margin-top:12px}.notice.win{background:#e1ecd7;border-color:#91af78}.phone-foot{margin-top:13px;display:flex;justify-content:space-between;color:#7e8976;font-size:9px}.inspector{display:grid;gap:18px}.panel{padding:23px 25px;border:1px solid var(--line);border-radius:18px;background:#ffffffb5}.panel p{color:var(--muted);font-size:13px;margin-top:8px}.tabs{display:flex;gap:5px;background:#e8ede4;padding:5px;border-radius:12px;margin:15px 0 12px}.tabs button{flex:1;border:0;background:transparent;border-radius:8px;font-size:12px;padding:8px 5px}.tabs button[aria-selected=true]{background:#fff;box-shadow:0 2px 6px #243a2310;font-weight:700}.guide{display:flex;flex-direction:column;gap:7px;margin-top:12px}.guide button{border:1px solid #d9e1d3;background:#f8faf5;text-align:left;border-radius:9px;padding:9px 12px;font-size:12px}.guide button.current{border-color:#809e70;background:#edf3e6}.guide button.finished{color:#72836b}.free-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}.free-actions button{border:1px solid #c7d4c1;background:transparent;border-radius:8px;padding:7px 10px;font-size:11px}.free-actions button.primary{background:#345343;border-color:#345343;color:white}.state-line{display:flex;gap:20px;margin:15px 0 12px}.state-value strong{font-size:25px;display:block;font-weight:600}.state-value small{font-size:11px;color:var(--muted)}.state-table{width:100%;border-collapse:collapse;font-size:11px}.state-table th{text-align:left;font-weight:600;color:#728168;border-bottom:1px solid #d8dfd1;padding:6px 3px}.state-table td{border-bottom:1px solid #e7ece1;padding:5px 3px}.state-table tr:last-child td{border-bottom:0}.log{margin-top:11px;color:#5c7453;font-size:11px;line-height:1.75;min-height:38px}.chapter{margin-top:28px;padding:26px;border:1px solid var(--line);border-radius:20px;background:#fafbf7}.chapter-head{display:flex;justify-content:space-between;gap:20px;align-items:center}.chapter-head p{font-size:12px;color:var(--muted);max-width:460px}.phases{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:20px 0}.phases button{min-height:70px;text-align:left;border:1px solid #d6dfce;background:#fff;border-radius:10px;padding:9px 10px;font-size:11px}.phases strong{display:block;font-size:15px;margin-bottom:3px}.phases button[aria-pressed=true]{background:#345343;color:#fff;border-color:#345343}.phase-detail{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:25px;padding:16px 0 0;border-top:1px solid #dce3d3}.phase-detail small{font-size:11px;color:#7c8975}.phase-detail p{font-size:13px;margin-top:5px}.caution{margin-top:18px;font-size:11px;color:#78816e}.footer{padding-top:22px;display:flex;justify-content:space-between;gap:15px;font-size:11px;color:#7d8874}.footer a{color:#466b51} @media(max-width:900px){.layout{grid-template-columns:1fr}.artboard{max-width:480px;width:100%;margin:auto}.inspector{grid-template-columns:1fr 1fr;gap:14px}.phases{grid-template-columns:repeat(4,1fr)}.hero h1{font-size:36px}}@media(max-width:600px){main{padding:22px 14px}.hero{display:block}.stamp{display:inline-block;margin-top:16px}.hero h1{font-size:32px}.artboard{padding:16px 12px}.phone{padding:20px 15px}.inspector{grid-template-columns:1fr}.panel{padding:20px}.chapter{padding:20px 16px}.chapter-head{display:block}.chapter-head p{margin-top:8px}.phases{grid-template-columns:repeat(2,1fr)}.phase-detail{grid-template-columns:1fr;gap:12px}.footer{display:block}.footer span{display:block;margin-bottom:8px}}
+.density-layout{display:grid;grid-template-columns:minmax(260px,390px) 1fr;gap:28px;align-items:center;margin-top:20px}.density-phone{max-width:390px;width:100%;padding:17px 12px;background:var(--paper);border:1px solid #ccd6c4;border-radius:23px}.density-caption{display:flex;justify-content:space-between;font-size:12px;margin-bottom:16px}.density-board{display:grid;gap:15px;min-height:210px;align-content:start}.density-row{display:flex;justify-content:center;gap:5px}.mini-bottle{flex:0 0 calc((100% - (var(--columns) - 1)*5px)/var(--columns));max-width:76px;height:104px;position:relative;text-align:center;min-width:0}.mini-bottle .mini-neck{height:15px;width:42%;border:1.5px solid #91a69c;border-radius:4px 4px 0 0;margin:auto;background:#f8fcf7}.mini-body{position:relative;margin:-2px 3px 0;height:74px;border:1.5px solid #91a69c;border-radius:9px 9px 10px 10px;padding:5px 3px 4px;display:flex;flex-direction:column-reverse;overflow:hidden;background:#f4f8f299}.mini-layer{height:25%;border-top:1px solid #ffffff55;background:var(--c);font-size:8px;line-height:15px;color:#fff}.mini-number{font-size:9px;color:#6f7e67;line-height:17px}.density-controls label{display:flex;justify-content:space-between;font-size:14px}.density-controls input{width:100%;accent-color:#527b63;margin:15px 0}.density-presets{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}.density-presets button{padding:8px 13px;border:1px solid #cbd7c3;border-radius:8px;background:white;min-width:48px}.density-presets button[aria-pressed=true]{background:#345343;color:white}.density-rule{font-size:14px;color:#58704d;line-height:1.9}.density-note{font-size:12px;color:#77866c;margin-top:14px}.density-result{font-size:22px;font-weight:600;letter-spacing:1px;margin-bottom:10px}@media(max-width:600px){.density-layout{grid-template-columns:1fr}.density-phone{margin:auto}.density-presets button{padding:8px 11px}}
+
+.board{display:flex;flex-direction:column}.game-row{display:grid;grid-template-columns:repeat(var(--game-columns),minmax(0,1fr));gap:4px}.vessel,.empty-position{width:min(54px,calc(100% - 6px))}.vessel .body{width:100%}.vessel .neck{left:50%;transform:translateX(-50%)}.vessel .cap{left:50%;transform:translateX(-50%)}.ad-locked .body{border-style:dashed;background:#edf0e8}.ad-locked .neck{border-style:dashed}.ad-mark{position:absolute;inset:30px 2px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#6a7c5e;font-size:10px;z-index:5}.ad-mark strong{font-size:17px;line-height:22px}.ad-info{font-size:10px;color:#6c7f60;margin-top:9px}.reward-dialog{max-width:360px;width:calc(100% - 32px);border:1px solid #c3cfb9;border-radius:18px;padding:24px;background:#fbfcf7;color:#284535}.reward-dialog::backdrop{background:#20362266}.reward-dialog p{font-size:13px;margin:12px 0;color:#617458}.reward-dialog button{border:1px solid #bccbb2;border-radius:8px;padding:9px 10px;background:#eff4e9}.reward-dialog button.reward-complete{background:#345343;color:white}.reward-options{display:flex;flex-direction:column;gap:8px}.mini-ad .mini-body{border-style:dashed;background:#edf0e8;justify-content:center;align-items:center;color:#6e805f;font-size:10px;line-height:1.5}.mini-ad .mini-neck{border-style:dashed}.mini-ad .mini-number{color:#56774b;font-size:8px}.density-split{font-size:12px;color:#5d7552;margin:0 0 14px}
+
+
+.game-tools{display:flex;justify-content:space-between;align-items:center;margin-top:17px;padding:5px 5px 0}.game-tool{position:relative;min-width:88px;min-height:62px;border:1px solid #b9cbb0;border-radius:13px;background:#edf3e7;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.4}.game-tool .tool-icon{font-size:24px;font-weight:600}.game-tool small{font-size:10px}.tool-badge{position:absolute;right:-5px;top:-7px;min-width:22px;height:22px;border-radius:50%;background:#c66950;border:2px solid #fff;color:white;font-size:12px;font-weight:700;display:grid;place-items:center}.tool-badge[hidden]{display:none}.tool-hint{font-size:9px;color:#79876c}.tool-ledger{font-size:12px;color:#6a7f5c;margin-top:10px}.state-table{table-layout:fixed}.state-table th:first-child{width:12%}.state-table th:nth-child(2){width:58%}.state-table th:last-child{width:30%}.state-table td{overflow-wrap:anywhere}.tabs{flex-wrap:wrap}.tabs button{min-width:70px}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">SHISE STUDIO / DESIGN STUDY 01</div>
+<header class="hero"><div><h1>把颜色归好。<br>让每一瓶有去处。</h1><p>「拾色工坊」第一版设计：探索只接水、单瓶解除固定和目标收取怎样衔接。点击瓶子或右侧步骤观察状态；下方可切换难度章节。</p></div><div class="stamp">评审沙盘 · 非正式游戏</div></header>
+<div class="layout">
+<section class="artboard" aria-label="原创界面和规则演示"><div class="art-label">暖纸 / 方瓶 / 颜色交付卡</div><div class="phone" id="phone">
+<div class="brand"><div><strong>拾色工坊</strong><br><small>让思路慢下来，让颜色归一。</small></div><span class="brand-mark" aria-hidden="true">拾</span></div>
+<div class="level-line"><span>练习台 · 定色与收集</span><span id="progress-label"></span></div><div class="progress"><span id="progress-bar"></span></div>
+<div class="tray-head"><span>颜色交付台</span><span>同色满瓶，按目标收取</span></div><div class="orders" id="orders"></div><div class="ad-info" id="ad-info"></div>
+<div class="board" id="board"></div>
+<div class="notice" id="notice" role="status" aria-live="polite"></div><div class="game-tools"><button class="game-tool" id="shuffle-tool" aria-label="打乱颜色"><span class="tool-icon" aria-hidden="true">⤨</span><span>打乱</span><small id="shuffle-caption">▶ 看广告获得</small><span class="tool-badge" id="shuffle-badge" hidden>1</span></button><span class="tool-hint">满瓶保留 · 次数独立</span><button class="game-tool" id="undo-tool" aria-label="撤回倒水"><span class="tool-icon" aria-hidden="true">↶</span><span>撤回</span><small id="undo-caption">▶ 看广告获得</small><span class="tool-badge" id="undo-badge" hidden>1</span></button></div><div class="phone-foot"><span>↓ 固定底座：只接水</span><span>封签：收取达标后开放</span></div>
+</div></section>
+<div class="inspector">
+<section class="panel"><div class="eyebrow">01 / 逐步检查</div><h2>限制在瓶子上，<br>不把整行一起锁住。</h2><div class="tabs" role="tablist" aria-label="规则场景" id="scenario-tabs"></div><p id="scenario-copy"></p><div class="guide" id="guide"></div><div class="free-actions"><button data-action="green">倒入苔绿</button><button data-action="coral">倒入珊瑚</button><button data-action="blue">倒入靛蓝</button><button data-action="blocked">尝试从定色瓶倒出</button><button id="repeat-reward" disabled>重复上次回调（验证）</button><button class="primary" id="reset">重置沙盘</button></div><p>也可以先点源瓶、再点目标瓶。这里演示 8 个关卡瓶位和 2 个广告空瓶位；正式关卡逐步增加瓶数，最多 3 行、每行最多 8 瓶；12–18 瓶优先排成 6＋6＋余数。交付台以 3 个基础槽为主，另预留第 4 个可解锁辅助槽。点击下方 I、J 可模拟广告解锁；本页不播放真实广告。</p></section>
+<section class="panel"><div class="eyebrow">02 / 当前状态</div><div class="state-line"><div class="state-value"><strong id="collected"></strong><small>已收取满瓶</small></div><div class="state-value"><strong id="restricted"></strong><small>仍然只接水</small></div><div class="state-value"><strong id="sealed"></strong><small>封签状态</small></div></div><table class="state-table"><thead><tr><th>瓶子</th><th>内容</th><th>当前状态</th></tr></thead><tbody id="state-rows"></tbody></table><div class="tool-ledger" id="tool-ledger"></div><div class="log" id="log" aria-live="polite"></div></section>
+</div></div>
+<section class="chapter"><div class="chapter-head"><div><div class="eyebrow">03 / 难度的增长</div><h2>先学会，再规划，最后组合。</h2></div><p>首次加入新规则时主动降低其他压力。挑战关后安排短关，不把所有难度参数同时拉满。</p></div><div class="phases" id="phases"></div><div class="phase-detail" id="phase-detail"></div><div class="caution">“定色瓶 1–3 个”指受限瓶的数量，不是行数或解锁次数。关卡范围是 V1 的设计建议，不是原作关卡规律；尚未生成或求解这 60 个关卡。规则沙盘不随章节切换，章节控件仅用于评审进度规划。</div></section>
+<section class="chapter" id="layout-preview"><div class="chapter-head"><div><div class="eyebrow">04 / 瓶阵排布预览</div><h2>最多三行，前两行优先排满。</h2></div><p>12–18 瓶：前两行各 6 瓶。超过 18 瓶后，依次扩展到每行 7、8 瓶；较短的第三行居中。</p></div><div class="density-layout"><div class="density-phone"><div class="density-caption"><strong>工作台 · 排布示意</strong><span id="density-total"></span></div><div class="density-board" id="density-board" aria-label="瓶阵排列"></div></div><div class="density-controls"><label for="bottle-count">总瓶位（含 2 个广告空瓶） <output id="bottle-count-label" for="bottle-count">15 瓶</output></label><input id="bottle-count" type="range" min="5" max="24" step="1" value="15"><div class="density-presets" id="density-presets"></div><div class="density-result" id="density-result" aria-live="polite"></div><div class="density-split" id="density-split"></div><div class="density-rule" id="density-rule"></div><p class="density-note">每关固定预留 2 个广告空瓶，计入总瓶位；优先放在最下方可容纳两个位置的一行两端。这里只查看排布，不生成关卡或改变上方沙盘。</p></div></div></section>
+<footer class="footer"><span>当前建议：固定目标序列 · 满瓶不打乱 · 打乱与撤回分别看广告获得 1 次</span><a href="../docs/design-v1.md">阅读完整设计方案 →</a></footer>
+</main>
+<dialog id="reward-dialog" class="reward-dialog" aria-labelledby="reward-title"><h2 id="reward-title">广告奖励 · 演示</h2><p id="reward-copy"></p><p>当前为规则沙盘，下面仅模拟广告结果，不连接广告服务。</p><div class="reward-options"><button class="reward-complete" id="reward-complete">模拟完整观看，获得奖励</button><button id="reward-cancel">模拟提前关闭</button><button id="reward-fail">模拟广告加载失败</button></div></dialog>
+<script>
+// PROTOTYPE: an in-memory review model, not a production game engine.
+const Model = (() => {
+  const full = b => b.layers.length === 4 && b.layers.every(c => c === b.layers[0]);
+  const shuffleable = b => !b.removed && !b.covered && !b.adLocked && !b.receiveOnly && b.layers.length > 1 && b.layers.length < 4 && new Set(b.layers).size > 1;
+  function create(mode='default',sessionId=1){
+    const s={bottles:[
+      {id:'A',layers:['green','green']},{id:'B',layers:['green','green'],receiveOnly:true},
+      {id:'C',layers:['coral','coral','coral'],receiveOnly:true},{id:'D',layers:['blue','blue','blue'],receiveOnly:true},
+      {id:'E',layers:['coral']},{id:'F',layers:['blue']},{id:'G',layers:['honey','honey','honey','honey'],covered:true,threshold:2},{id:'H',layers:[]},
+      {id:'I',layers:[],adSlot:true,adLocked:true},{id:'J',layers:[],adSlot:true,adLocked:true}
+    ],slots:[['honey'],['coral','green'],['blue']],goalTotal:4,collected:0,turn:0,complete:false,adUnlocked:[],pendingAd:null,requestSequence:0,sessionId,toolCredits:{shuffle:0,undo:0},shuffleSeed:7301,shuffleRevision:0,outcome:null,message:'左下角打乱、右下角撤回：完整观看后获得一次机会，角标显示 1，再次点击才使用。',events:[]};
+    if(mode==='tools'){
+      s.bottles[0].layers=['green','coral','blue'];
+      s.bottles[1]={id:'B',layers:['coral','green']};
+      s.bottles[2]={id:'C',layers:['green','green','green','green']};
+      s.bottles[3]={id:'D',layers:['green','blue','green','blue']};
+      s.bottles[4].layers=['coral','coral'];
+      s.slots=[['honey'],['coral','green','green'],['blue']];s.goalTotal=5;
+      s.message='道具验证：A、B 为未满混色瓶；C 单色满瓶、D 混色满瓶，都保持原样。先看广告，再点击带 1 的按钮使用。';
+    }
+    return s;
+  }
+  function settle(s){
+    let changed=true;
+    while(changed){
+      changed=false;
+      for(const b of s.bottles){
+        if(b.removed||b.adLocked)continue;
+        if(b.covered&&s.collected>=b.threshold){b.covered=false;s.events.push(`${b.id} 的封签开启：已收取 ${s.collected} 瓶。`);changed=true;}
+        if(!b.covered&&b.receiveOnly&&full(b)){b.receiveOnly=false;s.events.push(`${b.id} 已装满，单独解除固定。`);changed=true;}
+      }
+      const b=s.bottles.find(b=>!b.removed&&!b.adLocked&&!b.covered&&!b.receiveOnly&&full(b)&&s.slots.some(q=>q[0]===b.layers[0]));
+      if(b){const slot=s.slots.findIndex(q=>q[0]===b.layers[0]);s.slots[slot].shift();b.removed=true;s.collected++;s.events.push(`收取 ${b.id}，累计 ${s.collected} 瓶。`);changed=true;}
+    }
+    s.complete=s.bottles.every(b=>b.removed||b.layers.length===0)&&s.slots.every(q=>q.length===0);
+  }
+  function restore(snapshot,current){
+    const s=structuredClone(snapshot);s.adUnlocked=[...current.adUnlocked];s.pendingAd=null;
+    s.sessionId=current.sessionId;s.requestSequence=current.requestSequence;
+    s.toolCredits={...current.toolCredits,undo:current.toolCredits.undo-1};s.shuffleSeed=current.shuffleSeed;
+    for(const id of s.adUnlocked){const b=s.bottles.find(b=>b.id===id);if(b)b.adLocked=false;}
+    s.outcome='undo';s.message='已消耗 1 次撤回，恢复上一次倒水及其收取链；已获得的其他广告权益保留。';s.events=[];return s;
+  }
+  function act(state,action){
+    const s=structuredClone(state);s.events=[];s.outcome=null;
+    const reject=message=>{s.message=message;return s;};
+    if(action.type==='adResult'){
+      const pending=s.pendingAd;
+      if(!pending||action.requestId!==pending.requestId)return reject('忽略重复或过期广告结果，没有重复发放奖励。');
+      s.pendingAd=null;
+      if(action.result!=='complete')return reject(action.result==='failed'?'广告加载失败，次数和瓶位状态都不变。':'提前关闭，未获得奖励；可以稍后重试。');
+      if(pending.kind==='tool'){
+        s.toolCredits[pending.tool]=1;s.outcome='reward';
+        return reject(`${pending.tool==='shuffle'?'打乱':'撤回'}次数已获得：角标显示 1。局面没有执行操作，请再次点击使用。`);
+      }
+      const b=s.bottles.find(b=>b.id===pending.bottleId);
+      if(!b||!b.adLocked)return reject('此瓶位已经解锁，不会重复增加瓶子。');
+      b.adLocked=false;s.adUnlocked.push(b.id);s.outcome='reward';return reject(`${b.id} 已原地解锁为空瓶，可接水也可倒出。`);
+    }
+    if(s.pendingAd)return reject('先完成或关闭当前广告演示。');
+    if(action.type==='beginAd'){
+      if(action.tool){
+        if(!['shuffle','undo'].includes(action.tool))return reject('未知道具。');
+        if(s.toolCredits[action.tool]>0)return reject('已经有 1 次机会，可以直接使用，不重复请求广告。');
+        if(action.tool==='undo'&&!action.snapshot)return reject('没有可撤回的倒水，不请求广告，也不消耗机会。');
+        if(action.tool==='shuffle'&&(s.complete||!s.bottles.some(shuffleable)))return reject('没有可打乱的未满混色瓶，不请求广告，也不消耗机会。');
+        s.pendingAd={kind:'tool',tool:action.tool,requestId:`${s.sessionId}:${++s.requestSequence}`};
+        return reject(`观看后获得 1 次${action.tool==='shuffle'?'打乱':'撤回'}机会，获得后还需点击使用。`);
+      }
+      const b=s.bottles.find(b=>b.id===action.id);
+      if(s.complete||!b||!b.adSlot||!b.adLocked)return reject('当前无需解锁此瓶位。');
+      s.pendingAd={kind:'bottle',bottleId:b.id,requestId:`${s.sessionId}:${++s.requestSequence}`};
+      return reject(`准备解锁 ${b.id}：只有完整观看成功才开放这个空瓶。`);
+    }
+    if(action.type==='undo'){
+      if(!action.snapshot)return reject('没有可撤回的倒水，次数保持不变。');
+      if(s.toolCredits.undo<1)return reject('撤回需要 1 次机会，请先完整观看广告。');
+      return restore(action.snapshot,s);
+    }
+    if(s.complete)return reject('这组示例已完成。可以使用撤回机会，或重置后尝试另一条顺序。');
+    if(action.type==='shuffle'){
+      if(s.toolCredits.shuffle<1)return reject('打乱需要 1 次机会，请先完整观看广告。');
+      const eligible=s.bottles.filter(shuffleable);
+      if(!eligible.length)return reject('没有可打乱的未满混色瓶，次数保持不变。');
+      const random=n=>{let x=s.shuffleSeed;x^=x<<13;x^=x>>>17;x^=x<<5;s.shuffleSeed=x>>>0;return s.shuffleSeed%n;};
+      for(const b of eligible){const before=[...b.layers];for(let i=b.layers.length-1;i>0;i--){const j=random(i+1);[b.layers[i],b.layers[j]]=[b.layers[j],b.layers[i]];}
+        if(b.layers.join('|')===before.join('|'))b.layers=[...before.slice(1),before[0]];
+      }
+      s.toolCredits.shuffle--;s.shuffleRevision++;s.outcome='shuffle';
+      return reject(`已消耗 1 次打乱，重排 ${eligible.map(b=>b.id).join('、')} 的瓶内顺序。满瓶保持原样；打乱前的撤回历史已清空。`);
+    }
+    const from=s.bottles.find(b=>b.id===action.from),to=s.bottles.find(b=>b.id===action.to);
+    if(!from||!to||from===to)return reject('请选择两个不同的瓶子。');
+    if(from.removed||to.removed)return reject('已收走的瓶位不能再当作空瓶使用。');
+    if(from.adLocked||to.adLocked)return reject('广告空瓶尚未解锁，不能接水或倒水。');
+    if(from.covered||to.covered)return reject('封签瓶需要先累计收取 2 瓶，才能开放。');
+    if(from.receiveOnly)return reject(`${from.id} 只接水，不能作为源倒出；它需要先装成单色满瓶。`);
+    if(!from.layers.length)return reject('这是一只空瓶，请先选择有颜色的瓶子。');
+    if(full(from))return reject('单色满瓶已封口，只等待交付，不再倒出。');
+    if(to.layers.length>=4)return reject('目标瓶已经装满。');
+    const color=from.layers.at(-1);
+    if(to.layers.length&&to.layers.at(-1)!==color)return reject('顶层颜色不同，不能倒入。');
+    let run=0;for(let i=from.layers.length-1;i>=0&&from.layers[i]===color;i--)run++;
+    const n=Math.min(run,4-to.layers.length);from.layers.splice(from.layers.length-n,n);to.layers.push(...Array(n).fill(color));s.turn++;s.outcome='pour';
+    s.events.push(`${from.id} → ${to.id}，转移 ${n} 层。`);settle(s);
+    s.message=s.complete?'这一组颜色已全部交付。未解锁的广告空瓶不阻塞通关。':s.events.join(' ');return s;
+  }
+  return {create,act,full,shuffleable};
+})();
+</script>
+<script>
+const palette={green:{name:'苔绿',hex:'#7e9d63',symbol:'●'},coral:{name:'珊瑚',hex:'#d57c65',symbol:'◆'},blue:{name:'靛蓝',hex:'#6e88b0',symbol:'▲'},honey:{name:'蜜黄',hex:'#c9a24e',symbol:'■'}};
+const actions={green:{from:'A',to:'B'},coral:{from:'E',to:'C'},blue:{from:'F',to:'D'},blocked:{from:'B',to:'H'},probe:{from:'F',to:'H'}};
+const scenarios=[
+ {name:'只接不倒',text:'先试着从 B 倒出，再补满 B。留意 C、D 的底座仍然存在：限制按单瓶解除。',steps:[['尝试 B → H：应被阻止','blocked'],['A → B：补满并解除 B 的固定','green']]},
+ {name:'满瓶待收',text:'交付台当前没有苔绿。B 即使装满、解除固定，也应留在下方等待目标。',steps:[['A → B：装满，观察仍未被收走','green'],['E → C：完成珊瑚，补入苔绿目标','coral']]},
+ {name:'收取与揭封',text:'珊瑚收取后换入苔绿，形成连续收取；达到 2 次收取，G 的封签开放。',steps:[['A → B：先做好待收苔绿','green'],['E → C：收取链条并打开 G','coral'],['F → D：交付最后一瓶，完成示例','blue']]}
+,
+ {name:'道具次数',mode:'tools',text:'A、B 是未满混色瓶；C 单色满瓶、D 混色满瓶均受保护。广告成功先显示 1，再次点击才操作；此场景用于验证次数和保护范围。',steps:[['F → H：先制造一次可撤回的倒水','probe'],['观看广告，获得 1 次撤回','requestUndo'],['使用这 1 次撤回','useUndo'],['观看广告，获得 1 次打乱','requestShuffle'],['使用打乱：观察 A、B 变化，C、D 不变','useShuffle']]}
+];
+let demoSessionId=1,state=Model.create('default',demoSessionId),history=[],selected=null,scenarioIndex=0,stepIndex=0,shownRequestId=null,lastAdReceipt=null;
+function status(b){if(b.removed)return'已收走';if(b.adLocked)return'广告锁定';if(b.covered)return'封签未开';if(b.receiveOnly)return'↓ 只接水';if(Model.full(b))return'已满待收';return b.layers.length?'可倾倒':b.adSlot?'辅助空瓶':'自由空瓶';}
+function bottleMarkup(b){
+ const tag=status(b);
+ if(b.adLocked)return `<button class="bottle ad-locked" data-bottle="${b.id}" aria-label="瓶子 ${b.id}，看广告解锁空瓶"><span class="id">${b.id}</span><div class="vessel"><div class="neck"></div><div class="body"></div><div class="ad-mark"><strong>▶</strong><span>空瓶</span></div></div><span class="tag">看广告解锁</span></button>`;
+ if(b.removed)return `<button class="bottle" data-bottle="${b.id}" aria-label="${b.id} 已收走"><span class="id">${b.id}</span><div class="empty-position">✓<small>已交付</small></div><span class="tag">保留空位</span></button>`;
+ const layers=b.layers.map(c=>`<span class="layer" style="--c:${palette[c].hex}">${palette[c].symbol}</span>`).join('');
+ const cap=!b.covered&&Model.full(b)?'<div class="cap"></div>':'';
+ const cover=b.covered?`<div class="sleeve"><strong>${state.collected} / ${b.threshold}</strong><span>收取后揭封</span></div>`:'';
+ const clamp=b.receiveOnly?'<div class="clamp">↓</div>':'';
+ return `<button class="bottle ${selected===b.id?'selected':''}" data-bottle="${b.id}" aria-label="瓶子 ${b.id}，${tag}" aria-pressed="${selected===b.id}"><span class="id">${b.id}</span><div class="vessel"><div class="neck"></div>${cap}<div class="body"><div class="liquid">${layers}</div></div>${cover}${clamp}</div><span class="tag">${tag}</span></button>`;
+}
+function render(){
+ document.getElementById('orders').innerHTML=state.slots.map(q=>{const p=palette[q[0]];return p?`<div class="order" style="--c:${p.hex}"><span class="order-symbol">${p.symbol}</span><strong>${p.name}</strong><small>${q[1]?'接下来 '+palette[q[1]].name:'本格最后一单'}</small></div>`:'<div class="order done"><span class="order-symbol">✓</span><strong>本格完成</strong><small>不再补入目标</small></div>';}).join('');
+ const counts=BottleLayout.counts(state.bottles.length),reserved=BottleLayout.adPositions(counts);let regular=0,ad=0,offset=0;
+ const normal=state.bottles.filter(b=>!b.adSlot),extra=state.bottles.filter(b=>b.adSlot);
+ const ordered=Array.from({length:state.bottles.length},(_,i)=>reserved.includes(i)?extra[ad++]:normal[regular++]);
+ document.getElementById('board').innerHTML=counts.map(count=>{const row=ordered.slice(offset,offset+count);offset+=count;return `<div class="game-row" style="--game-columns:${Math.max(...counts)}">${row.map(bottleMarkup).join('')}</div>`}).join('');
+ document.getElementById('ad-info').textContent=`辅助空瓶：已解锁 ${state.adUnlocked.length} / 2 · 每瓶单独解锁`;
+ document.getElementById('progress-label').textContent=`已交付 ${state.collected} / ${state.goalTotal}`;
+ document.getElementById('progress-bar').style.width=`${state.collected/state.goalTotal*100}%`;
+ document.getElementById('notice').textContent=state.message;document.getElementById('notice').classList.toggle('win',state.complete);
+ document.getElementById('collected').textContent=state.collected+' / '+state.goalTotal;document.getElementById('restricted').textContent=state.bottles.filter(b=>b.receiveOnly&&!b.removed).length+' 瓶';document.getElementById('sealed').textContent=state.bottles.find(b=>b.id==='G').covered?'未开启':'已开启';
+ document.getElementById('state-rows').innerHTML=state.bottles.map(b=>{const content=b.removed?'已交付':b.adLocked?'空，未开放':b.covered?'封签遮住':b.layers.length?(new Set(b.layers).size===1?`${palette[b.layers[0]].name} ${b.layers.length}/4`:`底→顶：${b.layers.map(c=>palette[c].name).join('·')} (${b.layers.length}/4)`):'0/4';return `<tr><td>${b.id}</td><td>${content}</td><td>${status(b)}</td></tr>`;}).join('');
+ document.getElementById('log').textContent=state.events.length?state.events.join(' '):'点击步骤，查看每一次状态变化。';
+ for(const kind of ['shuffle','undo']){const count=state.toolCredits[kind];document.getElementById(kind+'-badge').hidden=count===0;document.getElementById(kind+'-badge').textContent=count;document.getElementById(kind+'-caption').textContent=count?'可使用 1 次':'▶ 看广告获得';}
+ document.getElementById('tool-ledger').textContent=`道具机会：打乱 ${state.toolCredits.shuffle} 次 / 撤回 ${state.toolCredits.undo} 次；可撤回倒水 ${history.length} 步。`;
+ document.getElementById('repeat-reward').disabled=!lastAdReceipt;
+ document.getElementById('scenario-tabs').innerHTML=scenarios.map((s,i)=>`<button role="tab" aria-selected="${scenarioIndex===i}" data-scenario="${i}">${s.name}</button>`).join('');
+ const scenario=scenarios[scenarioIndex];document.getElementById('scenario-copy').textContent=scenario.text;
+ document.getElementById('guide').innerHTML=scenario.steps.map(([label,a],i)=>`<button class="${i===stepIndex?'current':i<stepIndex?'finished':''}" data-step="${i}" data-guide-action="${a}">${i<stepIndex?'✓':i+1+'.'} ${label}</button>`).join('');
+}
+function dispatch(action){
+ const next=Model.act(state,action);
+ if(next.outcome==='pour')history.push(structuredClone(state));
+ if(next.outcome==='undo')history.pop();
+ if(next.outcome==='shuffle')history=[];
+ state=next;selected=null;render();
+}
+function reset(){state=Model.create(scenarios[scenarioIndex].mode||'default',++demoSessionId);history=[];selected=null;stepIndex=0;shownRequestId=null;render();}
+function showAdDialog(){
+ if(!state.pendingAd)return;
+ shownRequestId=state.pendingAd.requestId;
+ document.getElementById('reward-copy').textContent=state.pendingAd.kind==='tool'?`完整观看后获得 1 次${state.pendingAd.tool==='shuffle'?'打乱':'撤回'}。获得后角标显示 1，不会自动执行操作。`:`仅为 ${state.pendingAd.bottleId} 开放空瓶，另一瓶和道具次数保持不变。`;
+ document.getElementById('reward-dialog').showModal();
+}
+function useTool(tool){
+ if(state.toolCredits[tool]>0)dispatch({type:tool,snapshot:history.at(-1)});
+ else{dispatch({type:'beginAd',tool,snapshot:history.at(-1)});showAdDialog();}
+}
+function perform(key){if(key==='requestUndo'||key==='useUndo')useTool('undo');else if(key==='requestShuffle'||key==='useShuffle')useTool('shuffle');else dispatch(actions[key]);}
+document.getElementById('board').addEventListener('click',e=>{const el=e.target.closest('[data-bottle]');if(!el)return;const id=el.dataset.bottle;if(state.bottles.find(b=>b.id===id).adLocked){dispatch({type:'beginAd',id});showAdDialog();return;}if(selected===id){selected=null;render();return;}if(!selected){selected=id;render();return;}dispatch({from:selected,to:id});});
+document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>perform(b.dataset.action)));
+document.getElementById('scenario-tabs').addEventListener('click',e=>{const el=e.target.closest('[data-scenario]');if(!el)return;scenarioIndex=Number(el.dataset.scenario);reset();});
+document.getElementById('guide').addEventListener('click',e=>{const el=e.target.closest('[data-guide-action]');if(!el)return;stepIndex=Number(el.dataset.step)+1;perform(el.dataset.guideAction);});
+document.getElementById('reset').addEventListener('click',reset);
+document.getElementById('shuffle-tool').addEventListener('click',()=>useTool('shuffle'));
+document.getElementById('undo-tool').addEventListener('click',()=>useTool('undo'));
+document.getElementById('repeat-reward').addEventListener('click',()=>{if(lastAdReceipt)dispatch(lastAdReceipt);});
+const phases=[
+ ['1–5','学会整理','3–4 色 · 7–8 瓶位','0% 隐藏 · 无特殊限制','保留 2 个自由空瓶；先学会倒水与同色交付。'],
+ ['6–10','提前规划','4–5 色 · 8–10 瓶位','目标更新 · 满瓶待收','增加目标切换，不急着加入隐藏色。'],
+ ['11–20','逐层发现','4–6 色 · 9–11 瓶位','隐藏 10–25%','首次隐藏关减少色数，提供安全显露路径。'],
+ ['21–30','累计揭封','5–7 色 · 10–13 瓶位','封签门槛 2 → 3','首次封签关不叠隐藏难题，先教累计收取。'],
+ ['31–40','只接不倒','5–7 色 · 11–14 瓶位','只接水的瓶子：1 → 3 只','先用差一层的定色瓶教学；按瓶解除固定。'],
+ ['41–50','机制配合','6–8 色 · 12–16 瓶位','隐藏 25–35% · 逐步组合','封签与定色先交替出现，再在小规模关卡合用。'],
+ ['51–60','从容掌握','7–9 色 · 14–18 瓶位','隐藏 30–45% · 门槛 3–4','只提高一个主要参数，挑战关后安排短关。']
+];
+function showPhase(i){document.getElementById('phases').innerHTML=phases.map((p,n)=>`<button data-phase="${n}" aria-pressed="${n===i}"><strong>${p[0]}</strong>${p[1]}</button>`).join('');const p=phases[i];document.getElementById('phase-detail').innerHTML=`<div><small>规模建议</small><p>${p[2]}</p></div><div><small>主要难度</small><p>${p[3]}</p></div><div><small>给玩家的余地</small><p>${p[4]}</p></div>`;}
+document.getElementById('phases').addEventListener('click',e=>{const el=e.target.closest('[data-phase]');if(el)showPhase(Number(el.dataset.phase));});
+
+const BottleLayout={counts(n){if(n<1||n>24||!Number.isInteger(n))return [];if(n<=12){const first=Math.ceil(n/2);return [first,n-first].filter(v=>v>0);}const columns=n<=18?6:Math.ceil(n/3);return [columns,columns,n-2*columns].filter(v=>v>0);},adPositions(rows){let offset=rows.reduce((a,b)=>a+b,0);for(let i=rows.length-1;i>=0;i--){offset-=rows[i];if(rows[i]>=2)return [offset,offset+rows[i]-1];}return [];}};
+function showBottleLayout(n){
+ const rows=BottleLayout.counts(n),columns=Math.max(...rows),reserved=BottleLayout.adPositions(rows);let index=0;
+ document.getElementById('bottle-count').value=n;document.getElementById('bottle-count-label').textContent=n+' 瓶位';document.getElementById('density-total').textContent=n+' 瓶位 / '+rows.length+' 行';
+ document.getElementById('density-board').style.setProperty('--columns',columns);
+ document.getElementById('density-board').innerHTML=rows.map((count,row)=>`<div class="density-row" aria-label="第 ${row+1} 行，${count} 瓶位">${Array.from({length:count},()=>{const i=index++;if(reserved.includes(i))return `<div class="mini-bottle mini-ad" aria-label="广告预留空瓶"><div class="mini-neck"></div><div class="mini-body"><strong>▶</strong><span>空瓶</span></div><div class="mini-number">看广告解锁</div></div>`;const colors=Object.values(palette);return `<div class="mini-bottle"><div class="mini-neck"></div><div class="mini-body">${Array.from({length:4},(_,layer)=>{const c=colors[(i+layer)%colors.length];return `<span class="mini-layer" style="--c:${c.hex}">${c.symbol}</span>`}).join('')}</div><div class="mini-number">${i+1}</div></div>`;}).join('')}</div>`).join('');
+ document.getElementById('density-presets').innerHTML=[12,13,15,18,19,21,22,24].map(count=>`<button data-count="${count}" aria-pressed="${n===count}">${count} 瓶</button>`).join('');
+ document.getElementById('density-result').textContent=rows.join(' ＋ ');
+ document.getElementById('density-split').textContent=`${n-2} 个关卡瓶位 ＋ 2 个广告空瓶位 = ${n} 个总瓶位`;
+ document.getElementById('density-rule').textContent=n<12?'少量瓶位先用两行，较短的一行居中。':n<=18?'前两行各 6 瓶位，余数放第三行；12 瓶位时只显示两行。':`前两行各 ${columns} 瓶位，第三行放余下的 ${rows[2]} 个。`;
+}
+document.getElementById('bottle-count').addEventListener('input',e=>showBottleLayout(Number(e.target.value)));
+document.getElementById('density-presets').addEventListener('click',e=>{const el=e.target.closest('[data-count]');if(el)showBottleLayout(Number(el.dataset.count));});
+function endAd(result){const receipt={type:'adResult',result,requestId:shownRequestId};if(result==='complete')lastAdReceipt=receipt;dispatch(receipt);shownRequestId=null;document.getElementById('reward-dialog').close();}
+document.getElementById('reward-complete').addEventListener('click',()=>endAd('complete'));
+document.getElementById('reward-cancel').addEventListener('click',()=>endAd('cancelled'));
+document.getElementById('reward-fail').addEventListener('click',()=>endAd('failed'));
+document.getElementById('reward-dialog').addEventListener('cancel',e=>{e.preventDefault();endAd('cancelled');});
+render();showPhase(4);showBottleLayout(15);
+</script>
+</body>
+</html>

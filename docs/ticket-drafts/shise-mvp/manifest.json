@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-16",
+  "repository": "LeoYoungLH/Game_Color_Bottle",
+  "status": "published",
+  "issue_tracker": "github",
+  "parent_issue": {
+    "number": 1,
+    "url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/1",
+    "database_id": 6423861533
+  },
+  "source": "当前对话与《拾色工坊 MVP》规格草稿",
+  "review_notes": [
+    "用户已确认规格、13项拆分和验收边界，并授权一起发布。",
+    "14个Issue已读取核对正文、标签和引用；20条原生依赖已验证。",
+    "规格父Issue创建后未被修改或关闭。"
+  ],
+  "tickets": [
+    {
+      "id": "D01",
+      "number": 1,
+      "slug": "playable-first-level",
+      "title": "完成基础倒水与收取的一关可玩流程",
+      "blocked_by": [],
+      "deliverable": "玩家可以启动网页版本，选择源瓶与目标，整理颜色并完成一个基础关卡。以现有沙盘为行为参考建立最小正式游戏会话入口，同时交付基础验证关卡 S01–S03；工程配置、输入、规则、界面与行为验证随这条可玩流程一起完成。",
+      "acceptance_criteria": [
+        "提供可执行的启动与检查方式；从主页进入实际可玩的基础关卡，而非只显示设计稿。",
+        "普通瓶容量为 4；连续同色段按目标余量转移；空瓶和同顶色目标可接水，非法自倒、满目标、异色目标均不改变状态。",
+        "用稳定瓶位标识驱动选中、取消和倾倒；每关包含两个锁定广告空瓶预留位，暂不实现广告解锁，也不把它们作为免费空间。",
+        "三个基础收集槽可接收本关已明确的目标，单色满瓶没有匹配目标时等待；收取不复制颜色，必要收取完成后展示一次基础胜利。",
+        "提供 S01–S03 的明确局面与手工可重放解法；不使用广告帮助即可完成。后续统一求解校验由 D10 提供。",
+        "在游戏会话公开入口验证基本动作与不变性，通过浏览器完成一局；定义后续功能可复用的可见状态与动作结果契约。"
+      ],
+      "spec_acceptance": [
+        "T01",
+        "T02",
+        "T04",
+        "T08",
+        "T17"
+      ],
+      "dependency_reason": "无前置开发任务。测试边界采用已确认的统一游戏会话入口；不创建单独的基础设施或纯规则层票。",
+      "level_coverage": [
+        "S01",
+        "S02",
+        "S03"
+      ],
+      "status": "published",
+      "github_issue_number": 2,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2",
+      "planned_label": "ready-for-agent",
+      "draft_file": "01-playable-first-level.md",
+      "github_database_id": 6423862481,
+      "body_sha256": "0468352f7534fabc2ece88e216d1975d542c7b92f2177a04ec10406a5e2dab9c"
+    },
+    {
+      "id": "D02",
+      "number": 2,
+      "slug": "orders-and-next-level",
+      "title": "完成目标换色、连续收取与下一关",
+      "blocked_by": [
+        "D01"
+      ],
+      "deliverable": "玩家做好待收满瓶后，交付台能更新目标并连续收取；最终只结算一次，并能进入下一验证关。交付 S04–S05，补齐从开局到下一关的目标库存流程。",
+      "acceptance_criteria": [
+        "采用有限、确定的目标库存；三个槽先取得当前目标，收取后按稳定顺序从未分配目标补充，不复制需求。",
+        "没有匹配目标的满瓶留在原位；新目标匹配已满瓶时持续收取到链条稳定，同一瓶不被多个槽重复收走。",
+        "一条动作链的目标、收取数和瓶子移除作为完整结果提交；动画中重复输入不重复结算，保留已收走的位置。",
+        "预告明确标为下一待分配目标，不承诺共享目标必定属于某个特定槽。",
+        "本关必要收取完成后只触发一次胜利；空瓶和锁定广告位不阻塞；当前清单最后一关不跳到不存在的内容。",
+        "进入下一关建立新的对局代次，提供后续广告结果失效所需的公开身份边界。",
+        "S04–S05 可演示满瓶等待和连续收取，游戏会话与关键浏览器流程覆盖链条及导航。"
+      ],
+      "spec_acceptance": [
+        "T04",
+        "T05",
+        "T16",
+        "T17",
+        "T18"
+      ],
+      "dependency_reason": "依赖 D01 的可玩会话、瓶位身份和基本收取行为。",
+      "level_coverage": [
+        "S04",
+        "S05"
+      ],
+      "status": "published",
+      "github_issue_number": 3,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/3",
+      "planned_label": "ready-for-agent",
+      "draft_file": "02-orders-and-next-level.md",
+      "github_database_id": 6423863245,
+      "body_sha256": "dced2140beb1bd4e95ea7080e24c59a537c4a82e84409f50923c2e8f79b67f70"
+    },
+    {
+      "id": "D03",
+      "number": 3,
+      "slug": "responsive-original-interface",
+      "title": "交付最多三行的原创界面与基础反馈",
+      "blocked_by": [
+        "D01"
+      ],
+      "deliverable": "玩家在手机或桌面上能清楚选择瓶子、识别颜色和交付状态，关卡数量变化时保持最多三行。将原型的暖色工坊、方瓶和交付卡落实到可玩流程，并提供基础声音/震动设置。",
+      "acceptance_criteria": [
+        "12 位为 6＋6；13 为 6＋6＋1；18 为 6＋6＋6；19 为 7＋7＋5；21 为 7＋7＋7；22 为 8＋8＋6；24 为 8＋8＋8。短行居中，无第四行或横向滚屏。",
+        "总瓶位包含恰好两个广告预留位，放在最下方至少有两个位置的一行两端；13 位时放第二行两端；收取后不压缩重排其他位置。",
+        "颜色有符号或编号辅助；触控和鼠标均可选中、取消并完成基本倾倒，命中区互不重叠，密集排列不遮住关键信息。",
+        "在基础手机宽度及较窄、较宽尺寸验证无横向溢出；8 瓶一行的可读性和点击反馈通过实际预览检查，不虚报固定触控宽度。",
+        "原创表现与基础音效/震动开关在可玩关卡中生效；设备不支持时保留视觉反馈。设置先在会话内生效，持久化由 D12 完成。",
+        "登记实际使用的素材/依赖来源；本期不导入参考游戏贴图或音频。",
+        "通过会话的设置与操作结果，以及少量浏览器布局/点击检查验收；高密度示意数据不冒充额外可玩关卡。"
+      ],
+      "spec_acceptance": [
+        "T15",
+        "T16",
+        "T20"
+      ],
+      "dependency_reason": "只依赖 D01 的可玩输入和状态；不依赖目标队列、广告接入或特殊限制完成。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 4,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/4",
+      "planned_label": "ready-for-agent",
+      "draft_file": "03-responsive-original-interface.md",
+      "github_database_id": 6423864142,
+      "body_sha256": "5095f3b0eaa1644e603d5d738ea3e25e57c0f1972b914e4174f53210bb65b05d"
+    },
+    {
+      "id": "D04",
+      "number": 4,
+      "slug": "hidden-layers",
+      "title": "完成隐藏层显露与可理解的探索关卡",
+      "blocked_by": [
+        "D02"
+      ],
+      "deliverable": "玩家能在两关中逐步显露隐藏颜色、完成收取，并区分已知与未知信息。交付 S06–S07，保证隐藏层参与正常倒水和目标结算。",
+      "acceptance_criteria": [
+        "开局固定颜色与各层可见信息；隐藏层不是空层，允许一个瓶子初始有多层可见颜色。",
+        "倒走顶层后显露新的顶层，保留已知信息；对外可见状态不泄露仍隐藏的具体颜色。",
+        "新显露的同色内容与已有容量、待收和目标更新规则一致，不额外赠送内容或收取次数。",
+        "为 S06–S07 提供可重放的无广告解法和安全显露路径说明；不要仅以全知解法证明玩家不会被迫盲猜。",
+        "通过公开操作观察显露前后局面，并在浏览器检查遮片与颜色符号。后续跨撤回、打乱和存档场景由对应任务集成。"
+      ],
+      "spec_acceptance": [
+        "T03"
+      ],
+      "dependency_reason": "依赖 D02 的完整动作/收取链，以便显露结果能够在真实通关流程中验收。",
+      "level_coverage": [
+        "S06",
+        "S07"
+      ],
+      "status": "published",
+      "github_issue_number": 5,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/5",
+      "planned_label": "ready-for-agent",
+      "draft_file": "04-hidden-layers.md",
+      "github_database_id": 6423864841,
+      "body_sha256": "f1beefc0512b23ee3a01da7614aa64944d0d0bd260779fce8e5b77c4381ae719"
+    },
+    {
+      "id": "D05",
+      "number": 5,
+      "slug": "collection-seals",
+      "title": "完成累计收取揭封的关卡流程",
+      "blocked_by": [
+        "D02"
+      ],
+      "deliverable": "玩家看到封签门槛，完成指定数量的实际收取后揭封并继续通关。交付 S08–S09，以不同阈值验证计数与开放条件。",
+      "acceptance_criteria": [
+        "封签瓶开放前不能接水或倒水，显示门槛与当前收取进度；阈值来自关卡定义，不写死为 5。",
+        "只有实际收走满瓶才增加进度；以门槛 5 验证收取 4 瓶仍锁定，仅倒满不解锁，第 5 次实际收取才开放。",
+        "一次连续收取跨过门槛时只揭封一次；揭封后的瓶子正确参与同一次后续结算。",
+        "S08–S09 使用至少两种阈值，提供在未使用封签瓶之前就能达到门槛的无广告路径，避免解锁循环依赖。",
+        "通过会话公开行为和局内封签表现完成验收；提供后续撤回与保存恢复可观察的完整状态。"
+      ],
+      "spec_acceptance": [
+        "T06",
+        "T16"
+      ],
+      "dependency_reason": "依赖 D02 的实际收取计数和连续结算，而不依赖隐藏层或定色瓶。",
+      "level_coverage": [
+        "S08",
+        "S09"
+      ],
+      "status": "published",
+      "github_issue_number": 6,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/6",
+      "planned_label": "ready-for-agent",
+      "draft_file": "05-collection-seals.md",
+      "github_database_id": 6423865628,
+      "body_sha256": "1cc7aa00371982de450cee41d86c024f001648d4aeaf50a14f0a1bfadc41b01a"
+    },
+    {
+      "id": "D06",
+      "number": 6,
+      "slug": "receive-only-bottles",
+      "title": "完成定色瓶只接水与逐瓶解除固定",
+      "blocked_by": [
+        "D02"
+      ],
+      "deliverable": "玩家识别只能接水的瓶子，将其装成单色满瓶后单独解除固定，并按目标要求交付。交付 S10–S11，从单瓶教学到同行多瓶。",
+      "acceptance_criteria": [
+        "受限定色瓶可接收合法同色内容，但作为源倒出时被拒绝且局面不变。",
+        "装满一只瓶子只解除该瓶固定，同行其他未满瓶继续受限；满瓶等待目标，不立即无条件删除。",
+        "已完成单色满瓶按本版约定封口后不再倒出；限制、满瓶和收取是可分别观察的状态。",
+        "提供 S10 的单只教学和 S11 的多只同行示例，定色瓶预填已知单色，不叠加未定义的隐藏混色或封签。",
+        "保留免费自由空瓶与两个独立广告预留位，不能把定色瓶算成普通中转空间。",
+        "通过公开操作验证禁止倒出、逐瓶解除、待收与通关，检查实际底座和提示表现。"
+      ],
+      "spec_acceptance": [
+        "T02",
+        "T07"
+      ],
+      "dependency_reason": "依赖 D02 的满瓶等待、目标调度和收取链，不依赖 D04 或 D05。",
+      "level_coverage": [
+        "S10",
+        "S11"
+      ],
+      "status": "published",
+      "github_issue_number": 7,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/7",
+      "planned_label": "ready-for-agent",
+      "draft_file": "06-receive-only-bottles.md",
+      "github_database_id": 6423866404,
+      "body_sha256": "069466efb1e9ff0d5844293d8048cf1e18e5fbad03d50dceab4e0f984c327995"
+    },
+    {
+      "id": "D07",
+      "number": 7,
+      "slug": "reward-empty-bottles",
+      "title": "完成两个广告空瓶的独立模拟解锁",
+      "blocked_by": [
+        "D02"
+      ],
+      "deliverable": "玩家在缺少接水空间时选择一个广告空瓶，获得成功结果后原地开放，取消或失败则返回原局面。用这条流程建立其他奖励复用的请求身份与结果处理边界。",
+      "acceptance_criteria": [
+        "每关恰好两个空的锁定位，计入总瓶位但不取代免费空瓶；未解锁不能接水或倒水。",
+        "明确标注模拟广告，提供成功、提前关闭、失败和无可用广告结果；一次成功只解锁所选瓶，另一个保持状态。",
+        "解锁后可正常接水、倒水、装满及被收取；收走后不无限补空瓶。",
+        "请求绑定奖励目标、关卡、对局代次和唯一请求标识；重复、延迟、旧关或旧代次结果不重复发奖。",
+        "等待结果时阻止背景对局动作；非成功结果不消耗瓶位或改变棋盘；进入新关重新生成两个锁定位。",
+        "从界面发起模拟请求，再通过会话观察结果并完成倒水；不接真实 SDK，不读取登录或广告凭据。"
+      ],
+      "spec_acceptance": [
+        "T08",
+        "T09",
+        "T10"
+      ],
+      "dependency_reason": "依赖 D02 的关卡切换/代次和真实可玩的局面，以便验证跨关结果不会误发奖。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 8,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/8",
+      "planned_label": "ready-for-agent",
+      "draft_file": "07-reward-empty-bottles.md",
+      "github_database_id": 6423929044,
+      "body_sha256": "c87353c9cc9776b4e3cedca70143f47e1647f10759a83d461b48de07ecd29929"
+    },
+    {
+      "id": "D08",
+      "number": 8,
+      "slug": "reward-fourth-slot",
+      "title": "完成第四收集槽解锁与奖励目标隔离",
+      "blocked_by": [
+        "D07"
+      ],
+      "deliverable": "玩家可以用独立的模拟奖励开启第四个收集槽，让一个尚未分配的目标进入该槽，并继续完成收集。该奖励不影响下方广告空瓶。",
+      "acceptance_criteria": [
+        "第四槽默认锁定，使用明确不同于空瓶奖励的目标身份；成功、取消和失败遵循统一请求流程。",
+        "只从未分配目标库存取得目标，不复制已有需求；开启槽位不增加颜色库存或直接增加收取计数。",
+        "没有待分配目标时不给出无实际作用的广告请求；目标耗尽和辅助槽状态不错误阻塞胜利。",
+        "空瓶奖励不会开放第四槽，第四槽奖励不会开放空瓶；错误目标和旧结果均不发奖。",
+        "玩家可完整演示开启后匹配收取、后续目标补充和胜利；覆盖奖励隔离的会话与浏览器检查。"
+      ],
+      "spec_acceptance": [
+        "T11"
+      ],
+      "dependency_reason": "D07 已传递依赖 D02，并提供奖励请求和身份处理；无需重复列出 D02。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 9,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/9",
+      "planned_label": "ready-for-agent",
+      "draft_file": "08-reward-fourth-slot.md",
+      "github_database_id": 6423930042,
+      "body_sha256": "901d86c47cded65c09fe0d5918483f6920591135116bb02636f6e061e60801bc"
+    },
+    {
+      "id": "D09",
+      "number": 9,
+      "slug": "ad-credit-undo",
+      "title": "完成广告获得一次机会的撤回",
+      "blocked_by": [
+        "D04",
+        "D05",
+        "D06",
+        "D08"
+      ],
+      "deliverable": "玩家在右下角观看模拟广告取得一次撤回机会，看到角标 1，再点击恢复上一次倒水及完整连锁结果。此票建立道具机会账本与规则历史的分离，供打乱复用。",
+      "acceptance_criteria": [
+        "右下角撤回初始 0 次；成功广告只给撤回 1 次且不自动操作，角标显示 1；已有机会时直接使用，不重复请求广告。",
+        "无历史时不引导无作用广告；取消、失败、不匹配及重复结果不发奖；机会暂存上限为 1。",
+        "成功撤回消耗一次机会并隐藏角标，恢复最近一次成功倾倒及收取、目标更新、揭封、定色解除、隐藏信息与胜负状态；非法动作不进入历史。",
+        "恢复历史时保留已取得的空瓶和第四槽权益，不复制目标或液体；已消费的道具机会不因历史回退返还。",
+        "快速点击只处理一次有效撤回；完成态可按本版规则撤回到上一步，次数不足或无历史时不修改棋盘。",
+        "机会账本与棋盘快照分离，并保留后续保存恢复所需的公开状态；本票不做持久化，也不实现打乱。",
+        "用同时包含隐藏、封签、定色及辅助槽的受控局面演示完整回退，覆盖每种结果的会话检查和角标交互。"
+      ],
+      "spec_acceptance": [
+        "T12",
+        "T21",
+        "T22",
+        "T23",
+        "T24",
+        "T27",
+        "T28",
+        "T29",
+        "T30"
+      ],
+      "dependency_reason": "必须在 D04/D05/D06 的状态和 D08 的辅助槽权益存在后，才能验收完整回退；D08 已包含 D07 的模拟奖励依赖。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 10,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/10",
+      "planned_label": "ready-for-agent",
+      "draft_file": "09-ad-credit-undo.md",
+      "github_database_id": 6423930899,
+      "body_sha256": "25cfa7d6f9eb3e5713ab4ea8f40ff5b69b75286fd1e7bb5d7a43c99660e01e4c"
+    },
+    {
+      "id": "D10",
+      "number": 10,
+      "slug": "validated-hints",
+      "title": "让玩家获得有依据的提示与关卡回放结果",
+      "blocked_by": [
+        "D04",
+        "D05",
+        "D06",
+        "D08"
+      ],
+      "deliverable": "玩家点击提示时得到可执行且有依据的下一步，或得到当前无法可靠建议的说明。对已实现的验证关卡，通过真实会话规则回放合法解法并区分找到解、无解与预算耗尽。",
+      "acceptance_criteria": [
+        "搜索/回放涵盖目标库存、已收取瓶位、隐藏信息、封签门槛、定色出水限制以及当前已开放的辅助槽与空瓶；不借用简单分色结果直接宣称可解。",
+        "给定明确输入与预算返回已找到合法轨迹、搜索完毕确认无解、或未知/预算耗尽；未穷尽不能宣称无解。",
+        "提示通过当前可见界面提供一条当前合法操作及理由，不直接展开所有隐藏颜色；仅验证合法性时明确说明不保证通关。",
+        "可无广告回放现有 S01–S11 的固定轨迹，记录关卡版本、种子和结果；有错误的候选不进入关卡清单。完整 12 关由 D13 验收。",
+        "隐藏信息的安全显露路径另行审核，全知解法不能替代信息公平性说明。",
+        "通过会话公开入口回放轨迹和读取提示结果，不测试私有搜索步骤；预算不足时界面保持可操作，不虚构提示。",
+        "提供 D11 可调用的候选局面检查能力，但本票不随机生成无限关卡、不做完整信念状态求解。"
+      ],
+      "spec_acceptance": [
+        "T19",
+        "T29"
+      ],
+      "dependency_reason": "需要 D04/D05/D06 和 D08 提供全部前向规则及辅助槽状态；不需要撤回，因为求解不依赖付费回退操作。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 11,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/11",
+      "planned_label": "ready-for-agent",
+      "draft_file": "10-validated-hints.md",
+      "github_database_id": 6423931781,
+      "body_sha256": "982c21926994e750ee4d98f468ccf1ab18e4e3d750f67700076c1a843e22fea8"
+    },
+    {
+      "id": "D11",
+      "number": 11,
+      "slug": "ad-credit-shuffle",
+      "title": "完成广告打乱、满瓶保护与失败不扣次",
+      "blocked_by": [
+        "D09",
+        "D10"
+      ],
+      "deliverable": "玩家在左下角完整观看模拟广告获得一次打乱机会，角标显示 1；再次点击后仅提交通过检查的有效重排。与撤回机会、空瓶和第四槽独立。",
+      "acceptance_criteria": [
+        "打乱与撤回各自最多持有 1 次；成功广告只增加对应机会，不自动执行，取消/失败/重复/错误类型结果不发奖。",
+        "按当前规格的显式解释，只重排符合条件的未满瓶内部颜色，不跨瓶分配；所有容量已满瓶，包括混色满瓶，完全保持原样。",
+        "封签、定色、未解锁广告位、空瓶和已收走瓶位均不参与；重排保留每瓶单位数、库存、位置、权限、目标与收取数。颜色及对应显露标记一起移动，再按顶层规则显露。",
+        "先构造有实际变化的候选并通过 D10 检查，再原子提交和扣 1 次；没有对象、无法得到有效结果、验证失败或预算耗尽时保留机会和原局面。",
+        "成功打乱建立新历史起点，不能用撤回旧倒水免费还原整个打乱；无效打乱不清空历史。之后的新倒水仍可消耗撤回机会恢复。",
+        "连续快速点击不得重复执行或扣成负数；消费后的旧广告回调不能恢复机会。",
+        "演示左下/右下分别 0→1→0、满瓶保护、失败保留次数和打乱后的撤回边界，并通过会话级行为检查。"
+      ],
+      "spec_acceptance": [
+        "T21",
+        "T22",
+        "T23",
+        "T24",
+        "T25",
+        "T26",
+        "T27",
+        "T29",
+        "T30",
+        "T32"
+      ],
+      "dependency_reason": "D09 提供机会账本及可撤回历史，D10 提供候选检查；缺少任一项都不能兑现有效打乱后才扣次。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 12,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/12",
+      "planned_label": "ready-for-agent",
+      "draft_file": "11-ad-credit-shuffle.md",
+      "github_database_id": 6423932609,
+      "body_sha256": "820ba92ad59ad85b4d668e1968fcd69f943ad907ad84aa1984dbf5a9271a0b2b"
+    },
+    {
+      "id": "D12",
+      "number": 12,
+      "slug": "save-resume-retry",
+      "title": "完成暂停、重开、继续游戏与权益持久化",
+      "blocked_by": [
+        "D03",
+        "D11"
+      ],
+      "deliverable": "玩家离开、刷新浏览器、重试当前关或进入下一关后，能恢复一致的对局和应保留的权益；存档损坏或存储不可用时能安全继续或重新开始。",
+      "acceptance_criteria": [
+        "暂停/主页入口保存最后完整提交的状态，继续时不重复执行动画对应的收取或奖励，暂停与弹窗期间背景不接受操作。",
+        "保存版本化的关卡身份、输入版本与种子、瓶子及可见信息、目标库存、收取数、必要历史、权益、道具机会账本、进度和设置，并验证恢复一致性。",
+        "重开先确认，恢复相同关卡初始内容和目标，清空规则历史；本记录已经取得的空瓶/辅助槽权益和未使用机会保留，已消费机会不复活。",
+        "进入新关重置该关两个广告空瓶及第四槽权益，使用新请求代次；按当前规格保留未使用道具机会，旧请求或重复恢复不重新发奖。",
+        "缺失存档正常开始；损坏、版本不兼容给出明确重新开始选择；存储被禁用或写入失败时保留本次内存游玩并说明不能持久保存。",
+        "完成关卡进度只推进一次，当前验证清单最后一关有明确完成状态；声音/震动设置恢复后生效。",
+        "没有合法动作时展示适用的撤回、重开与剩余广告空瓶选择；撤回仍遵循机会规则，不把暂时卡住直接判成无法继续的永久失败。",
+        "通过会话保存恢复契约、可控失败存储适配器，以及少量真实浏览器刷新/继续流程验收；不直接检查存储私有结构作为主要测试。"
+      ],
+      "spec_acceptance": [
+        "T13",
+        "T14",
+        "T18",
+        "T31"
+      ],
+      "dependency_reason": "D11 已传递包含全部规则和奖励账本依赖；另依赖 D03 的设置与交互，才能兑现保存恢复设置和实际页面流程。",
+      "level_coverage": [],
+      "status": "published",
+      "github_issue_number": 13,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/13",
+      "planned_label": "ready-for-agent",
+      "draft_file": "12-save-resume-retry.md",
+      "github_database_id": 6423933457,
+      "body_sha256": "dfd1782f03cfb795298184750995ab7ce99bbcb461d8bfe40cf94be2dcf5927c"
+    },
+    {
+      "id": "D13",
+      "number": 13,
+      "slug": "twelve-level-mvp",
+      "title": "交付十二关验证清单与完整可玩版本",
+      "blocked_by": [
+        "D12"
+      ],
+      "deliverable": "用户能够选择并连续游玩完整的 S01–S12 验证清单，体验全部机制与组合，并看到本版完成。整合前序已交付关卡，补齐 S12 和最终交付说明，形成可评审的 MVP。",
+      "acceptance_criteria": [
+        "收齐 S01–S03 基础、S04–S05 目标、S06–S07 隐藏、S08–S09 封签、S10–S11 定色，补齐一关组合 S12；不把验证编号当成正式教学前 12 关。",
+        "每关恰有两个广告预留位并不替代免费空瓶；全部 12 关均能在不使用广告空瓶、第四槽、打乱或撤回的情况下回放通关。",
+        "记录每关的版本、种子、完整输入、轨迹与验证结果；无法验证或预算耗尽的候选不作为完成交付。",
+        "S12 实际组合隐藏、封签、定色和目标收取；高密度排布另有边界检查，不能把未验证示意局当作额外可玩关。",
+        "验证清单、下一关、最后一关完成、返回主页及继续进度正常；新玩家能看到必要教学提示。",
+        "在最终集成版本运行类型检查、会话行为验证和关键浏览器流程；核对规格 T01–T32 的实际覆盖，区分正式实现通过项与仅计划项。",
+        "交付启动/检查/验收说明、素材与依赖来源和已知限制；明确真实微信广告、发布、云服务和完整 60 关仍不在本期范围。"
+      ],
+      "spec_acceptance": [
+        "T19"
+      ],
+      "dependency_reason": "D12 已传递包含全部功能依赖；本票新增组合关与完整内容体验，不另建一个与功能脱离的纯测试阶段。",
+      "level_coverage": [
+        "S12"
+      ],
+      "status": "published",
+      "github_issue_number": 14,
+      "github_issue_url": "https://github.com/LeoYoungLH/Game_Color_Bottle/issues/14",
+      "planned_label": "ready-for-agent",
+      "draft_file": "13-twelve-level-mvp.md",
+      "github_database_id": 6423934355,
+      "body_sha256": "962341642e732b31898d6180e118089f15eb625d5989b138a65925624c3d5ebb"
+    }
+  ],
+  "approved_on": "2026-11-16",
+  "dependency_mode": "native-and-body-links",
+  "publication_verified_on": "2026-11-16"
+}
