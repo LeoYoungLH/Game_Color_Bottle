@@ -245,3 +245,20 @@ test('a new session has a distinct identity even for the same level', () => {
   assert.notEqual(first.sessionId, next.sessionId);
   assert.equal(first.levelId, next.levelId);
 });
+
+test('simultaneous full bottles use identifier order without changing board positions', () => {
+  const session = createGameSession({
+    id: 'ordered', title: 'Order',
+    bottles: [
+      { id: 'B', layers: ['moss', 'moss', 'moss', 'moss'] },
+      { id: 'A', layers: ['moss', 'moss', 'moss', 'moss'] },
+      { id: 'C', layers: ['coral', 'coral', 'coral', 'coral'] },
+    ],
+    targets: ['moss', 'moss', 'coral'],
+  });
+  const snapshot = session.getSnapshot();
+  assert.deepEqual(snapshot.bottles.slice(0, 3).map(b => b.id), ['B', 'A', 'C']);
+  assert.deepEqual(snapshot.collected.map(r => [r.bottleId, r.slotId]), [
+    ['A', 'slot-1'], ['B', 'slot-2'], ['C', 'slot-3'],
+  ]);
+});

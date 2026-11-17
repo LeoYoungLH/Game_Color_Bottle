@@ -54,7 +54,7 @@ function renderBottle(bottle: BottleView, selected: boolean): string {
   return `<button class="bottle ${bottle.status} ${selected ? 'selected' : ''}" data-bottle="${escape(bottle.id)}" data-focus-key="bottle-${escape(bottle.id)}" aria-label="${escape(label)}" aria-pressed="${selected}" ${bottle.status === 'ad-locked' || bottle.status === 'collected' ? 'aria-disabled="true"' : ''}><span class="bottle-id">${bottle.id.startsWith('ad-') ? '＋' : escape(bottle.id)}</span>${graphic}<span class="bottle-caption">${caption}</span></button>`;
 }
 
-/** D01 uses two rows for its seven/eight fixed positions; wider boards belong to D03. */
+/** D03 will provide the responsive three-row layout; current levels use two rows. */
 function renderBoard(snapshot: SessionSnapshot): string {
   const ordinary = snapshot.bottles.filter(b => b.status !== 'ad-locked');
   const ads = snapshot.bottles.filter(b => b.status === 'ad-locked');

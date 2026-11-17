@@ -95,6 +95,7 @@ export function createGameSession(level: LevelDefinition) {
     { id: 'ad-1', layers: [], status: 'ad-locked' },
     { id: 'ad-2', layers: [], status: 'ad-locked' },
   ];
+  const collectionOrder = [...bottles].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const targets: { id: string; color: string | null; fulfilled: boolean }[] = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));
   const upcomingTargets = [...(level.upcomingTargets ?? [])];
   let nextTargetIndex = 0;
@@ -117,7 +118,7 @@ export function createGameSession(level: LevelDefinition) {
     let matched: boolean;
     do {
       matched = false;
-      for (const bottle of bottles) {
+      for (const bottle of collectionOrder) {
         if (bottle.status === 'ad-locked' || bottle.status === 'collected') continue;
         const color = bottle.layers[0];
         if (!color || bottle.layers.length !== BOTTLE_CAPACITY || !bottle.layers.every(layer => layer === color)) continue;

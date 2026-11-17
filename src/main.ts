@@ -24,6 +24,10 @@ let screen: 'home' | 'game' = 'home';
 let notice = '';
 let confirmRestart = false;
 
+function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
+  return BASIC_LEVELS[BASIC_LEVELS.indexOf(level) + 1] ?? null;
+}
+
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const receipts = result.events.filter(event => event.type === 'collected');
@@ -41,7 +45,7 @@ function render(): void {
     const active = current?.session.getSnapshot();
     app.innerHTML = renderHome(active?.phase === 'playing' && current ? { title: current.level.definition.title, moves: active.moveCount } : null);
   } else if (current) {
-    const nextLevel = BASIC_LEVELS[BASIC_LEVELS.indexOf(current.level) + 1] ?? null;
+    const nextLevel = nextLevelAfter(current.level);
     app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel);
   }
   const dialog = app.querySelector<HTMLDialogElement>('dialog');
@@ -82,7 +86,7 @@ app.addEventListener('click', event => {
     case 'continue': if (current) { screen = 'game'; render(); } break;
     case 'next': {
       if (!current || current.session.getSnapshot().phase !== 'won') break;
-      const next = BASIC_LEVELS[BASIC_LEVELS.indexOf(current.level) + 1];
+      const next = nextLevelAfter(current.level);
       if (next) start(next);
       break;
     }
