@@ -392,6 +392,7 @@ test('a sealed bottle rejects both directions until actual collections reach its
     upcomingTargets: ['honey'],
   });
   const openingState = session.getSnapshot();
+  const initialPositions = openingState.bottles.map(b => b.id);
   assert.deepEqual(openingState.bottles.find(b => b.id === 'I'), {
     id: 'I', layers: [null, null, null], status: 'sealed', sealThreshold: 2,
   });
@@ -417,6 +418,7 @@ test('a sealed bottle rejects both directions until actual collections reach its
   assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'I'), {
     id: 'I', layers: ['honey', 'honey', 'honey'], status: 'available', sealThreshold: 2,
   });
+  assert.deepEqual(session.getSnapshot().bottles.map(b => b.id), initialPositions);
   session.dispatch({ type: 'pour', from: 'J', to: 'I' });
   assert.equal(session.getSnapshot().collected.length, 3);
   session.dispatch({ type: 'pour', from: 'B', to: 'D' });
@@ -472,6 +474,7 @@ test('the fifth actual receipt opens a threshold-five seal once and settles its 
   ]);
   assert.equal(session.getSnapshot().collected.length, 6);
   assert.equal(session.getSnapshot().phase, 'won');
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.sealThreshold, 5);
   assert.equal(session.dispatch({ type: 'pour', from: 'I', to: 'D' }).accepted, false);
 });
 
