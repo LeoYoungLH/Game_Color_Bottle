@@ -91,4 +91,34 @@ export const BASIC_LEVELS: readonly AuthoredLevel[] = [
     version: 1,
     solution: [['B', 'A'], ['C', 'B'], ['D', 'C']],
   },
+  {
+    definition: {
+      id: 'S06', title: '纸下的颜色', targets: ['moss', 'coral', 'blue'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'coral', 'coral'], hiddenLayers: [1] },
+        { id: 'B', layers: ['coral', 'coral', 'blue', 'blue'], hiddenLayers: [1] },
+        { id: 'C', layers: ['blue', 'blue', 'moss', 'moss'] },
+        { id: 'D', layers: [] }, { id: 'E', layers: [] },
+      ],
+    },
+    subtitle: '先露出一层，再决定下一步',
+    lesson: '问号仍占一层。先把 A 顶部的珊瑚倒入空瓶，纸片下的新顶层才会显露。',
+    version: 1,
+    solution: [['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
+  },
+  {
+    definition: {
+      id: 'S07', title: '逐层辨认', targets: ['moss', 'coral', 'blue'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'coral', 'moss', 'coral'], hiddenLayers: [2] },
+        { id: 'B', layers: ['coral', 'blue', 'coral', 'blue'], hiddenLayers: [2] },
+        { id: 'C', layers: ['blue', 'moss', 'blue', 'moss'], hiddenLayers: [2] },
+        { id: 'D', layers: [] }, { id: 'E', layers: [] }, { id: 'F', layers: [] },
+      ],
+    },
+    subtitle: '已知层不会重新遮住',
+    lesson: '每只瓶子的顶层起初可见。先让 A 的珊瑚进入空瓶，再根据显露的颜色继续分层。',
+    version: 1,
+    solution: [['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D'], ['C', 'B'], ['A', 'C'], ['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
+  },
 ];

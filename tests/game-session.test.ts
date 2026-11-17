@@ -278,3 +278,80 @@ test('feedback settings are independent session commands and do not change the b
   assert.deepEqual(session.getSnapshot().feedback, { sound: true, vibration: true });
   assert.deepEqual(createGameSession(opening).getSnapshot().feedback, { sound: false, vibration: false });
 });
+
+test('hidden layers occupy capacity without exposing their colours in the public snapshot', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: opening.bottles.map(b => b.id === 'A' ? { ...b, hiddenLayers: [1] } : b),
+  });
+  const before = session.getSnapshot();
+  assert.deepEqual(before.bottles[0]?.layers, ['moss', null, 'coral', 'coral']);
+  assert.equal(before.bottles[0]?.layers.length, 4);
+  assert.equal('hiddenLayers' in before.bottles[0]!, false);
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'A', to: 'D' }).events, [
+    { type: 'poured', from: 'A', to: 'D', units: 2 },
+    { type: 'revealed', bottleId: 'A', color: 'moss' },
+  ]);
+  const after = session.getSnapshot();
+  assert.deepEqual(after.bottles[0]?.layers, ['moss', 'moss']);
+  assert.deepEqual(after.bottles.find(b => b.id === 'D')?.layers, ['coral', 'coral']);
+  assert.equal(after.collected.length, 0);
+});
+
+test('moving an unknown same-colour layer reveals it only at its destination', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: opening.bottles.map(b => b.id === 'A' ? { ...b, hiddenLayers: [2] } : b),
+  });
+  assert.deepEqual(session.getSnapshot().bottles[0]?.layers, ['moss', 'moss', null, 'coral']);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'D')?.layers, ['coral', 'coral']);
+  assert.deepEqual(session.getSnapshot().bottles[0]?.layers, ['moss', 'moss']);
+});
+
+test('invalid hidden-layer positions are rejected before play', () => {
+  const withHidden = (hiddenLayers: number[]) => ({
+    ...opening,
+    bottles: opening.bottles.map(b => b.id === 'A' ? { ...b, hiddenLayers } : b),
+  });
+  assert.throws(() => createGameSession(withHidden([1, 1])), /hidden layer/);
+  assert.throws(() => createGameSession(withHidden([4])), /hidden layer/);
+  assert.throws(() => createGameSession(withHidden([3])), /top layer/);
+});
+
+test('S06 and S07 expose only planned information before their safe first pours', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const cases = [
+    { id: 'S06', opening: ['moss', null, 'coral', 'coral'], revealed: ['moss', 'moss'], units: 2 },
+    { id: 'S07', opening: ['moss', 'coral', null, 'coral'], revealed: ['moss', 'coral', 'moss'], units: 1 },
+  ] as const;
+  for (const example of cases) {
+    const level = BASIC_LEVELS.find(candidate => candidate.definition.id === example.id)!;
+    const session = createGameSession(level.definition);
+    assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'A')?.layers, example.opening);
+    const result = session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+    assert.equal(result.accepted, true);
+    assert.deepEqual(result.events, [
+      { type: 'poured', from: 'A', to: 'D', units: example.units },
+      { type: 'revealed', bottleId: 'A', color: 'moss' },
+    ]);
+    assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'A')?.layers, example.revealed);
+    assert.equal(session.getSnapshot().collected.length, 0);
+  }
+});
+
+test('failed pours and later edits to level data cannot reveal an unknown layer', () => {
+  const hiddenBottle = { ...opening.bottles[0]!, hiddenLayers: [1] };
+  const sessionInputBottle = structuredClone(hiddenBottle);
+  const level = {
+    ...opening,
+    bottles: [sessionInputBottle, ...opening.bottles.slice(1)],
+  };
+  const session = createGameSession(level);
+  const before = session.getSnapshot();
+  sessionInputBottle.hiddenLayers[0] = 0;
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'A', to: 'B' }), {
+    accepted: false, reason: 'full-target', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), before);
+});

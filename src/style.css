@@ -90,6 +90,8 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .liquid-stack { position: absolute; inset: 4px 3px 3px; display: flex; flex-direction: column-reverse; border-radius: 5px 5px 9px 9px; overflow: hidden; }
 .liquid-layer { position: relative; display: grid; place-items: center; flex: 0 0 25%; background: linear-gradient(100deg,#17241e50,var(--paint) 28%,var(--paint) 72%,#fff5e13b); border-top: 1px solid #f8f9de8c; color: #152320; font-size: 10px; font-weight: 800; }
 .liquid-layer span { position: relative; z-index: 1; }
+.hidden-layer { color: #483c30; background: repeating-linear-gradient(135deg,#decfae 0 6px,#cdbd9e 6px 8px); border-color: #f9eac5; font-size: 15px; }
+.hidden-layer:after { content: ''; position: absolute; right: 0; top: 0; border-width: 0 6px 6px 0; border-style: solid; border-color: transparent #f6e7c4 transparent transparent; }
 .bottle.ready .bottle-neck { border-top-color: var(--accent); }
 .bottle.ready .bottle-body { border-color: var(--accent); }
 .bottle-caption { display: block; height: 15px; line-height: 15px; margin-top: 4px; color: #acbdb0; font-size: 10px; white-space: nowrap; overflow: hidden; }

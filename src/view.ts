@@ -21,7 +21,7 @@ function brand(): string {
 
 export function renderHome(active: { title: string; moves: number } | null): string {
   return `<main class="home shell">
-    <header class="site-header">${brand()}<span class="edition">验证关卡 01—05</span></header>
+    <header class="site-header">${brand()}<span class="edition">验证关卡 01—07</span></header>
     <div class="home-heading"><span class="section-label">选择关卡</span><h1>调色工作台</h1></div>
     ${active ? `<section class="continue-strip"><div><span>继续对局</span><strong>${escape(active.title)} <small>· ${active.moves} 次倒水</small></strong></div><button class="primary" data-action="continue">继续 <i data-lucide="arrow-right" aria-hidden="true"></i></button></section>` : ''}
     <section class="level-section" aria-label="验证关卡"><div class="level-list">${BASIC_LEVELS.map(level => `<button class="level-entry" data-level="${escape(level.definition.id)}" aria-label="开始 ${escape(level.definition.id)} ${escape(level.definition.title)}"><span class="level-number">${escape(level.definition.id)}</span><span class="level-copy"><strong>${escape(level.definition.title)}</strong><small>${escape(level.subtitle)}</small></span><span class="level-meta">${level.definition.bottles.length + 2} 瓶位</span><i data-lucide="chevron-right" aria-hidden="true"></i></button>`).join('')}</div></section>
@@ -32,11 +32,13 @@ export function renderHome(active: { title: string; moves: number } | null): str
 function renderBottle(bottle: BottleView, selected: boolean, dense: boolean): string {
   const empty = bottle.layers.length === 0;
   const top = bottle.layers.at(-1);
+  const hiddenCount = bottle.layers.filter(layer => layer === null).length;
   const ad = isAdBottleId(bottle.id);
   const label = bottle.status === 'ad-locked' ? `广告空瓶 ${bottle.id}，尚未解锁`
     : bottle.status === 'collected' ? `瓶 ${bottle.id}，已收取`
-    : `瓶 ${bottle.id}，${empty ? '空瓶' : `顶层${colorName(top!)}`}，${bottle.layers.length}/4`;
+    : `瓶 ${bottle.id}，${empty ? '空瓶' : top === null ? '顶层未知' : `顶层${colorName(top!)}`}，${bottle.layers.length}/4${hiddenCount ? `，${hiddenCount}层隐藏颜色` : ''}`;
   const layers = bottle.layers.map(color => {
+    if (color === null) return '<span class="liquid-layer hidden-layer" aria-hidden="true"><span>?</span></span>';
     const paint = COLORS[color];
     return `<span class="liquid-layer" style="--paint:${paint?.hex ?? '#d8ac5f'}" aria-hidden="true"><span>${paint?.symbol ?? '•'}</span></span>`;
   }).join('');

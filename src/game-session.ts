@@ -9,6 +9,8 @@ export interface BottleDefinition {
   readonly id: string;
   /** Colours are ordered from bottom to top. */
   readonly layers: readonly string[];
+  /** Zero-based positions from bottom to top that start concealed. */
+  readonly hiddenLayers?: readonly number[];
 }
 
 export interface LevelDefinition {
@@ -21,7 +23,9 @@ export interface LevelDefinition {
 
 export type BottleStatus = 'available' | 'ready' | 'collected' | 'ad-locked';
 
-export interface BottleView extends BottleDefinition {
+export interface BottleView {
+  readonly id: string;
+  readonly layers: readonly (string | null)[];
   readonly status: BottleStatus;
 }
 
@@ -55,6 +59,7 @@ export type PlayerAction =
 export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
+  | { readonly type: 'revealed'; readonly bottleId: string; readonly color: string }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -73,6 +78,10 @@ function validateLevel(level: LevelDefinition): void {
     if (isAdBottleId(bottle.id)) throw new Error('Invalid level: ad bottle IDs are reserved.');
     ids.add(bottle.id);
     if (bottle.layers.length > BOTTLE_CAPACITY) throw new Error('Invalid level: bottle capacity exceeded.');
+    const hidden = bottle.hiddenLayers ?? [];
+    if (!Array.isArray(hidden) || hidden.some(index => !Number.isInteger(index) || index < 0 || index >= bottle.layers.length)
+      || new Set(hidden).size !== hidden.length) throw new Error('Invalid level: hidden layer positions must be unique and within the bottle.');
+    if (hidden.includes(bottle.layers.length - 1)) throw new Error('Invalid level: top layer must be visible at the start.');
     for (const color of bottle.layers) {
       if (typeof color !== 'string' || !color.trim()) throw new Error('Invalid level: colour IDs must be non-empty strings.');
       inventory.set(color, (inventory.get(color) ?? 0) + 1);
@@ -99,9 +108,9 @@ export function createGameSession(level: LevelDefinition) {
   const sessionId = crypto.randomUUID();
   const levelId = level.id;
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
-  const bottles: { id: string; layers: string[]; status: BottleStatus }[] = [
-    ...level.bottles.map(b => ({ id: b.id, layers: [...b.layers], status: 'available' as const })),
-    ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], status: 'ad-locked' as const })),
+  const bottles: { id: string; layers: string[]; revealed: boolean[]; status: BottleStatus }[] = [
+    ...level.bottles.map(b => ({ id: b.id, layers: [...b.layers], revealed: b.layers.map((_, index) => !b.hiddenLayers?.includes(index)), status: 'available' as const })),
+    ...AD_BOTTLE_IDS.map(id => ({ id, layers: [], revealed: [], status: 'ad-locked' as const })),
   ];
   const collectionOrder = [...bottles].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const targets: { id: string; color: string | null; fulfilled: boolean }[] = level.targets.map((color, index) => ({ id: `slot-${index + 1}`, color, fulfilled: false }));
@@ -115,7 +124,9 @@ export function createGameSession(level: LevelDefinition) {
 
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
-      sessionId, levelId, phase, bottles, targets,
+      sessionId, levelId, phase,
+      bottles: bottles.map(b => ({ id: b.id, layers: b.layers.map((color, index) => b.revealed[index] ? color : null), status: b.status })),
+      targets,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
       moveCount, selectedBottleId, feedback,
@@ -136,6 +147,7 @@ export function createGameSession(level: LevelDefinition) {
         if (!target) continue;
         const receipt = { bottleId: bottle.id, color, units: BOTTLE_CAPACITY, slotId: target.id };
         bottle.layers = [];
+        bottle.revealed = [];
         bottle.status = 'collected';
         target.color = nextTargetIndex < upcomingTargets.length ? upcomingTargets[nextTargetIndex++]! : null;
         target.fulfilled = target.color === null;
@@ -189,9 +201,15 @@ export function createGameSession(level: LevelDefinition) {
     for (let index = source.layers.length - 1; index >= 0 && source.layers[index] === color; index--) segment++;
     const units = Math.min(segment, BOTTLE_CAPACITY - target.layers.length);
     target.layers.push(...source.layers.splice(source.layers.length - units, units));
+    source.revealed.splice(source.revealed.length - units, units);
+    target.revealed.push(...Array<boolean>(units).fill(true));
     moveCount++;
     selectedBottleId = null;
     const events: GameEvent[] = [{ type: 'poured', from: source.id, to: target.id, units }];
+    if (source.layers.length && !source.revealed.at(-1)) {
+      source.revealed[source.revealed.length - 1] = true;
+      events.push({ type: 'revealed', bottleId: source.id, color: source.layers.at(-1)! });
+    }
     collectMatchingBottles(events);
     return { accepted: true, events };
   }

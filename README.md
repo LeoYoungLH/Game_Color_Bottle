@@ -5,7 +5,7 @@
 
 ## 当前可玩版本
 
-已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2)、[Issue #3：目标队列与下一关](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/3) 和 [Issue #4：响应式原创界面](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/4)，包含 S01–S05 五个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
+已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #5：隐藏层与显露](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/5)，包含 S01–S07 七个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
 
 ```powershell
 npm.cmd ci

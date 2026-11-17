@@ -58,6 +58,8 @@ function resultMessage(result: ActionResult): string {
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
   if (receipts.length) return `已收取${receipts.map(event => colorName(event.color)).join('、')}。空出的位置会保留。`;
+  const revealed = result.events.find(event => event.type === 'revealed');
+  if (revealed) return `${revealed.bottleId} 的新顶层显露为${colorName(revealed.color)}。`;
   const poured = result.events.find(event => event.type === 'poured');
   if (poured) return `已从 ${poured.from} 向 ${poured.to} 倒入 ${poured.units} 层。`;
   const selection = result.events.find(event => event.type === 'selection-changed');
