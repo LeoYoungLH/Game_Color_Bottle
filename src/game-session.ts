@@ -38,18 +38,22 @@ export interface SessionSnapshot {
   readonly requiredCollections: number;
   readonly moveCount: number;
   readonly selectedBottleId: string | null;
+  readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
 }
 
+export type FeedbackKind = 'sound' | 'vibration';
 export type PlayerAction =
   | { readonly type: 'pour'; readonly from: string; readonly to: string }
   | { readonly type: 'select-bottle'; readonly bottleId: string }
-  | { readonly type: 'cancel-selection' };
+  | { readonly type: 'cancel-selection' }
+  | { readonly type: 'set-feedback'; readonly kind: FeedbackKind; readonly enabled: boolean };
 export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
-  | { readonly type: 'selection-changed'; readonly bottleId: string | null };
+  | { readonly type: 'selection-changed'; readonly bottleId: string | null }
+  | { readonly type: 'feedback-changed'; readonly kind: FeedbackKind; readonly enabled: boolean };
 export type ActionResult =
   | { readonly accepted: true; readonly events: readonly GameEvent[] }
   | { readonly accepted: false; readonly reason: RejectionReason; readonly events: readonly [] };
@@ -103,13 +107,14 @@ export function createGameSession(level: LevelDefinition) {
   let moveCount = 0;
   let phase: SessionSnapshot['phase'] = 'playing';
   let selectedBottleId: string | null = null;
+  const feedback = { sound: false, vibration: false };
 
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
       sessionId, levelId, phase, bottles, targets,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
-      moveCount, selectedBottleId,
+      moveCount, selectedBottleId, feedback,
     });
   }
 
@@ -144,6 +149,10 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   function dispatch(action: PlayerAction): ActionResult {
+    if (action.type === 'set-feedback') {
+      feedback[action.kind] = action.enabled;
+      return { accepted: true, events: [{ type: 'feedback-changed', kind: action.kind, enabled: action.enabled }] };
+    }
     if (phase === 'won') return { accepted: false, reason: 'level-complete', events: [] };
     if (action.type === 'cancel-selection') {
       selectedBottleId = null;

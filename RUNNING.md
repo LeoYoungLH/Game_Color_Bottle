@@ -1,10 +1,10 @@
 # 运行“拾色工坊”基础版本
 
-当前实现对应 [Issue #2](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 和 [Issue #3](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/3)，提供 S01–S05 五个验证关卡。入口是仓库根目录的网页应用，原有 `design/` 仍是设计演示。
+当前实现对应 [Issue #2](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2)、[Issue #3](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/3) 和 [Issue #4](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/4)，提供 S01–S05 五个验证关卡。入口是仓库根目录的网页应用，原有 `design/` 仍是设计演示。
 
 ## 环境与启动
 
-需要 Node.js 24.12 或更新版本。
+需要 Node.js 24.12 或更新版本。开发和构建脚本使用 Vite 的 `runner` 配置加载方式。
 
 在项目目录的 PowerShell 中执行：
 
@@ -32,6 +32,8 @@ npm.cmd run preview
 
 测试使用 Node 内置测试运行器，通过游戏会话公开接口检查行为。构建产物位于被 Git 忽略的 `dist/`；预览默认使用 4173 端口。
 
+排布检视页在 `/layout-preview.html`，滑块可查看 5–24 个初始瓶位。这些是密度示意，不是新增可玩关卡；地址参数 `?total=13` 可固定一个瓶数。声音和震动在对局顶部独立开关，当前只在本次对局生效，不跨关或刷新保存。
+
 ## 五个验证关卡
 
 颜色层的定义顺序为从底到顶。每个收集目标对应四个颜色单位，每瓶容量为四；每关有两个锁定广告瓶位，不计入免费接水空间。
@@ -56,4 +58,4 @@ npm.cmd run preview
 
 ## 代码与内容来源
 
-规则模块、关卡、界面文字和 CSS 瓶型为本项目独立实现，未提取参考游戏代码或媒体。运行时没有外部 API、字体服务或图片依赖；开发工具版本锁定在 `package-lock.json`。
+规则模块、关卡、界面文字和 CSS 瓶型为本项目独立实现，未提取参考游戏代码或媒体。按钮图标来自 `lucide-static` 0.468.0（ISC 许可，仅按需打包 SVG）；声音由 Web Audio 合成，不使用外部音频素材。运行时没有外部 API 或字体服务；依赖版本锁定在 `package-lock.json`。

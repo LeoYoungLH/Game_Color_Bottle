@@ -262,3 +262,19 @@ test('simultaneous full bottles use identifier order without changing board posi
     ['A', 'slot-1'], ['B', 'slot-2'], ['C', 'slot-3'],
   ]);
 });
+
+test('feedback settings are independent session commands and do not change the board', () => {
+  const session = createGameSession(opening);
+  const before = session.getSnapshot();
+  assert.deepEqual(before.feedback, { sound: false, vibration: false });
+  assert.deepEqual(session.dispatch({ type: 'set-feedback', kind: 'sound', enabled: true }), {
+    accepted: true, events: [{ type: 'feedback-changed', kind: 'sound', enabled: true }],
+  });
+  assert.deepEqual(session.getSnapshot().feedback, { sound: true, vibration: false });
+  assert.deepEqual(session.getSnapshot().bottles, before.bottles);
+  assert.equal(session.getSnapshot().moveCount, 0);
+  session.dispatch({ type: 'set-feedback', kind: 'vibration', enabled: true });
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  assert.deepEqual(session.getSnapshot().feedback, { sound: true, vibration: true });
+  assert.deepEqual(createGameSession(opening).getSnapshot().feedback, { sound: false, vibration: false });
+});

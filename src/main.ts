@@ -1,4 +1,5 @@
 import './style.css';
+import { hydrateIcons } from './icons.ts';
 import { createGameSession, type ActionResult, type PlayerAction, type RejectionReason } from './game-session.ts';
 import { BASIC_LEVELS, type AuthoredLevel } from './levels.ts';
 import { colorName, renderGame, renderHome } from './view.ts';
@@ -23,6 +24,30 @@ let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSessio
 let screen: 'home' | 'game' = 'home';
 let notice = '';
 let confirmRestart = false;
+let audioContext: AudioContext | null = null;
+
+function playFeedback(result: ActionResult): void {
+  if (!result.accepted || !result.events.some(event => event.type === 'poured')) return;
+  const settings = current?.session.getSnapshot().feedback;
+  if (settings?.vibration) {
+    try { navigator.vibrate?.(result.events.some(event => event.type === 'won') ? 55 : 20); }
+    catch { /* Some devices reject vibration; the game state still renders. */ }
+  }
+  if (!settings?.sound || !window.AudioContext) return;
+  try {
+    audioContext ??= new AudioContext();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+    oscillator.type = 'sine';
+    oscillator.frequency.value = result.events.some(event => event.type === 'collected') ? 660 : 440;
+    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    oscillator.connect(gain).connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.14);
+  } catch { /* Visual feedback remains available when audio is blocked. */ }
+}
 
 function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
   return BASIC_LEVELS[BASIC_LEVELS.indexOf(level) + 1] ?? null;
@@ -48,6 +73,7 @@ function render(): void {
     const nextLevel = nextLevelAfter(current.level);
     app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel);
   }
+  hydrateIcons(app);
   const dialog = app.querySelector<HTMLDialogElement>('dialog');
   if (dialog) dialog.showModal();
   else if (focused) app.querySelector<HTMLButtonElement>(`[data-focus-key="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
@@ -64,12 +90,14 @@ function start(level: AuthoredLevel): void {
 
 function dispatch(action: PlayerAction): void {
   if (!current) return;
-  notice = resultMessage(current.session.dispatch(action));
+  const result = current.session.dispatch(action);
+  notice = resultMessage(result);
+  playFeedback(result);
   render();
 }
 
 app.addEventListener('click', event => {
-  const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-level], [data-bottle]') : null;
+  const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-level], [data-bottle], [data-feedback]') : null;
   if (!button || !app.contains(button)) return;
   event.preventDefault();
   if (button.dataset.level) {
@@ -79,6 +107,14 @@ app.addEventListener('click', event => {
   }
   if (button.dataset.bottle) {
     dispatch({ type: 'select-bottle', bottleId: button.dataset.bottle });
+    return;
+  }
+  if (button.dataset.feedback === 'sound' || button.dataset.feedback === 'vibration') {
+    const kind = button.dataset.feedback;
+    const enabled = !current?.session.getSnapshot().feedback[kind];
+    current?.session.dispatch({ type: 'set-feedback', kind, enabled });
+    notice = `${kind === 'sound' ? '声音' : '震动'}已${enabled ? '开启' : '关闭'}。`;
+    render();
     return;
   }
   switch (button.dataset.action) {
