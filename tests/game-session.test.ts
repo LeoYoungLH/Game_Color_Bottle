@@ -87,7 +87,7 @@ test('matching full bottles are collected once and the final delivery wins', () 
   assert.deepEqual(session.getSnapshot(), completed);
 });
 
-test('a full bottle without a matching current target stays sealed in its own position', () => {
+test('a full bottle without a matching current target stays ready in its own position', () => {
   const session = createGameSession({
     ...opening,
     bottles: [...opening.bottles, { id: 'F', layers: ['amber', 'amber', 'amber'] }, { id: 'G', layers: ['amber'] }],
@@ -379,4 +379,156 @@ test('hidden-level witness routes use visible top colours at every decision fork
     }
     assert.equal(session.getSnapshot().phase, 'won');
   }
+});
+
+test('a sealed bottle rejects both directions until actual collections reach its threshold', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [
+      ...opening.bottles,
+      { id: 'I', layers: ['honey', 'honey', 'honey'], sealThreshold: 2 },
+      { id: 'J', layers: ['honey'] },
+    ],
+    upcomingTargets: ['honey'],
+  });
+  const openingState = session.getSnapshot();
+  assert.deepEqual(openingState.bottles.find(b => b.id === 'I'), {
+    id: 'I', layers: [null, null, null], status: 'sealed', sealThreshold: 2,
+  });
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'J', to: 'I' }), {
+    accepted: false, reason: 'sealed-bottle', events: [],
+  });
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'I', to: 'D' }), {
+    accepted: false, reason: 'sealed-bottle', events: [],
+  });
+  assert.deepEqual(session.dispatch({ type: 'select-bottle', bottleId: 'I' }), {
+    accepted: false, reason: 'sealed-bottle', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), openingState);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  assert.equal(session.getSnapshot().collected.length, 1);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'sealed');
+  const second = session.dispatch({ type: 'pour', from: 'B', to: 'C' });
+  assert.deepEqual(second.events.filter(event => event.type === 'unsealed'), [
+    { type: 'unsealed', bottleId: 'I', threshold: 2 },
+  ]);
+  assert.equal(session.getSnapshot().collected.length, 2);
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'I'), {
+    id: 'I', layers: ['honey', 'honey', 'honey'], status: 'available', sealThreshold: 2,
+  });
+  session.dispatch({ type: 'pour', from: 'J', to: 'I' });
+  assert.equal(session.getSnapshot().collected.length, 3);
+  session.dispatch({ type: 'pour', from: 'B', to: 'D' });
+  assert.equal(session.getSnapshot().phase, 'won');
+});
+
+test('filling a waiting bottle without collection does not advance a seal', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [
+      ...opening.bottles,
+      { id: 'I', layers: ['honey', 'honey', 'honey'], sealThreshold: 2 },
+      { id: 'J', layers: ['honey'] },
+      { id: 'K', layers: ['violet', 'violet', 'violet'] },
+      { id: 'L', layers: ['violet'] },
+    ],
+    upcomingTargets: ['honey', 'violet'],
+  });
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  const before = session.getSnapshot();
+  assert.equal(before.collected.length, 1);
+  const filled = session.dispatch({ type: 'pour', from: 'L', to: 'K' });
+  assert.deepEqual(filled.events, [{ type: 'poured', from: 'L', to: 'K', units: 1 }]);
+  const after = session.getSnapshot();
+  assert.equal(after.bottles.find(b => b.id === 'K')?.status, 'ready');
+  assert.equal(after.bottles.find(b => b.id === 'I')?.status, 'sealed');
+  assert.equal(after.collected.length, 1);
+});
+
+test('the fifth actual receipt opens a threshold-five seal once and settles its waiting bottle', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const base = BASIC_LEVELS.find(level => level.definition.id === 'S05')!.definition;
+  const session = createGameSession({
+    ...base,
+    id: 'threshold-five',
+    bottles: [...base.bottles, { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], sealThreshold: 5 }],
+    upcomingTargets: [...(base.upcomingTargets ?? []), 'honey'],
+  });
+  session.dispatch({ type: 'pour', from: 'B', to: 'A' });
+  session.dispatch({ type: 'pour', from: 'C', to: 'B' });
+  const before = session.getSnapshot();
+  assert.equal(before.collected.length, 4);
+  assert.equal(before.bottles.find(b => b.id === 'I')?.status, 'sealed');
+  assert.deepEqual(before.bottles.find(b => b.id === 'I')?.layers, [null, null, null, null]);
+  const fifth = session.dispatch({ type: 'pour', from: 'D', to: 'C' });
+  assert.deepEqual(fifth.events, [
+    { type: 'poured', from: 'D', to: 'C', units: 3 },
+    { type: 'collected', bottleId: 'C', color: 'moss', units: 4, slotId: 'slot-3' },
+    { type: 'unsealed', bottleId: 'I', threshold: 5 },
+    { type: 'collected', bottleId: 'I', color: 'honey', units: 4, slotId: 'slot-1' },
+    { type: 'won', levelId: 'threshold-five' },
+  ]);
+  assert.equal(session.getSnapshot().collected.length, 6);
+  assert.equal(session.getSnapshot().phase, 'won');
+  assert.equal(session.dispatch({ type: 'pour', from: 'I', to: 'D' }).accepted, false);
+});
+
+test('at four receipts, filling an unmatched bottle leaves a threshold-five seal closed', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const base = BASIC_LEVELS.find(level => level.definition.id === 'S05')!.definition;
+  const session = createGameSession({
+    ...base,
+    id: 'four-before-five',
+    bottles: [
+      ...base.bottles,
+      { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], sealThreshold: 5 },
+      { id: 'J', layers: ['honey', 'honey', 'honey', 'honey'] },
+      { id: 'K', layers: ['violet', 'violet', 'violet'] },
+      { id: 'L', layers: ['violet'] },
+    ],
+    upcomingTargets: ['coral', 'blue', 'honey', 'honey', 'violet'],
+  });
+  session.dispatch({ type: 'pour', from: 'B', to: 'A' });
+  const before = session.getSnapshot();
+  assert.equal(before.collected.length, 4);
+  assert.equal(before.bottles.find(b => b.id === 'I')?.status, 'sealed');
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'L', to: 'K' }).events, [
+    { type: 'poured', from: 'L', to: 'K', units: 1 },
+  ]);
+  const after = session.getSnapshot();
+  assert.equal(after.collected.length, 4);
+  assert.equal(after.bottles.find(b => b.id === 'K')?.status, 'ready');
+  assert.equal(after.bottles.find(b => b.id === 'I')?.status, 'sealed');
+  const fifth = session.dispatch({ type: 'pour', from: 'C', to: 'B' });
+  assert.equal(fifth.events.filter(event => event.type === 'unsealed').length, 1);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'collected');
+});
+
+test('sealed bottle thresholds must be meaningful level data', () => {
+  const withSeal = (sealThreshold: number, layers = ['honey', 'honey', 'honey', 'honey']) => ({
+    ...opening,
+    bottles: [...opening.bottles, { id: 'I', layers, sealThreshold }],
+    upcomingTargets: ['honey'],
+  });
+  assert.throws(() => createGameSession(withSeal(0)), /positive integer/);
+  assert.throws(() => createGameSession(withSeal(1.5)), /positive integer/);
+  assert.throws(() => createGameSession(withSeal(4)), /precede/);
+  assert.throws(() => createGameSession(withSeal(2, [])), /contents/);
+});
+
+test('changing a level threshold after session creation cannot open its seal early', () => {
+  const sealed = { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], sealThreshold: 2 };
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles, sealed],
+    upcomingTargets: ['honey'],
+  });
+  sealed.sealThreshold = 1;
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  assert.equal(session.getSnapshot().collected.length, 1);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'sealed');
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.sealThreshold, 2);
 });

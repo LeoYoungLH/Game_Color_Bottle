@@ -121,4 +121,40 @@ export const BASIC_LEVELS: readonly AuthoredLevel[] = [
     version: 1,
     solution: [['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D'], ['C', 'B'], ['A', 'C'], ['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']],
   },
+  {
+    definition: {
+      id: 'S08', title: '封签初试', targets: ['moss', 'coral', 'blue'], upcomingTargets: ['honey'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'coral', 'coral'] },
+        { id: 'B', layers: ['coral', 'coral', 'blue', 'blue'] },
+        { id: 'C', layers: ['blue', 'blue', 'moss', 'moss'] },
+        { id: 'D', layers: [] }, { id: 'E', layers: [] },
+        { id: 'I', layers: ['honey', 'honey', 'honey'], sealThreshold: 2 },
+        { id: 'J', layers: ['honey'] },
+      ],
+    },
+    subtitle: '收走两瓶，打开封签',
+    lesson: '封签瓶暂时不能倒水或接水。先收取两只单色满瓶，再把剩余的蜜黄倒入已开放的瓶子。',
+    version: 1,
+    solution: [['A', 'D'], ['C', 'A'], ['B', 'C'], ['J', 'I'], ['B', 'D']],
+  },
+  {
+    definition: {
+      id: 'S09', title: '第五次收取', targets: ['moss', 'moss', 'moss'], upcomingTargets: ['coral', 'blue', 'honey'],
+      bottles: [
+        { id: 'A', layers: ['moss', 'moss', 'moss'] },
+        { id: 'B', layers: ['moss', 'moss', 'moss'] },
+        { id: 'C', layers: ['moss', 'moss', 'moss'] },
+        { id: 'D', layers: ['moss', 'moss', 'moss'] },
+        { id: 'E', layers: ['coral', 'coral', 'coral', 'coral'] },
+        { id: 'F', layers: ['blue', 'blue', 'blue', 'blue'] },
+        { id: 'G', layers: [] }, { id: 'H', layers: [] },
+        { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], sealThreshold: 5 },
+      ],
+    },
+    subtitle: '倒满不等于收走',
+    lesson: '数的是已收取的满瓶，不是倒水次数。收走第五只时，封签才会打开并参与后续收取。',
+    version: 1,
+    solution: [['B', 'A'], ['C', 'B'], ['D', 'C']],
+  },
 ];

@@ -80,7 +80,7 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .bottle-board { display: flex; flex-direction: column; gap: 17px; width: 100%; max-width: 660px; margin: 20px auto 7px; --bottle-gap: 8px; }
 .bottle-row { display: flex; justify-content: center; gap: var(--bottle-gap); width: 100%; }
 .bottle { position: relative; min-width: 0; flex: 0 0 calc((100% - (var(--columns) - 1) * var(--bottle-gap)) / var(--columns)); border: 1px solid transparent; border-radius: 6px; background: transparent; padding: 2px 1px 4px; text-align: center; transition: transform .16s ease, background .16s ease; }
-.bottle:hover:not(.ad-locked):not(.collected) { background: #37453d; }
+.bottle:hover:not(.ad-locked):not(.collected):not(.sealed) { background: #37453d; }
 .bottle.selected { background: #46543d; border-color: var(--accent); transform: translateY(-5px); }
 .bottle-id { display: block; height: 15px; line-height: 15px; font-size: 10px; font-weight: 700; color: #cbd8cb; }
 .bottle-art { position: relative; display: block; width: min(56px, calc(100% - 2px)); height: clamp(84px, 24vw, 116px); margin: auto; filter: drop-shadow(2px 4px 2px #111b17a6); }
@@ -94,6 +94,11 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .hidden-layer:after { content: ''; position: absolute; right: 0; top: 0; border-width: 0 6px 6px 0; border-style: solid; border-color: transparent #f6e7c4 transparent transparent; }
 .bottle.ready .bottle-neck { border-top-color: var(--accent); }
 .bottle.ready .bottle-body { border-color: var(--accent); }
+.sealed .bottle-neck, .sealed .bottle-body { border-color: #b9a888; }
+.seal-sheet { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #433b32; background: repeating-linear-gradient(130deg,#ead9b6 0 9px,#dbc9a5 9px 11px); border-left: 3px solid #c39862; border-right: 3px solid #c39862; }
+.seal-stamp { display: grid; place-items: center; width: 23px; height: 23px; margin-bottom: 4px; color: #fcdeb0; background: #955c4e; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.seal-sheet strong { font-size: 16px; line-height: 1; }
+.seal-sheet small { font-size: 8px; white-space: nowrap; }
 .bottle-caption { display: block; height: 15px; line-height: 15px; margin-top: 4px; color: #acbdb0; font-size: 10px; white-space: nowrap; overflow: hidden; }
 .bottle-caption.dense-caption { font-size: 9px; }
 .ad-locked .bottle-neck, .ad-locked .bottle-body { border-color: #708078; border-style: dashed; background: #313b35; }
