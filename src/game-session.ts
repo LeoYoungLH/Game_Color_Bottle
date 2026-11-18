@@ -109,7 +109,7 @@ export type ActionResult =
   | { readonly accepted: true; readonly events: readonly GameEvent[] }
   | { readonly accepted: false; readonly reason: RejectionReason; readonly events: readonly [] };
 
-interface RuleCheckpoint {
+export interface RuleCheckpoint {
   bottles: { id: string; layers: LayerState[]; status: BottleStatus; sealThreshold?: number; receiveOnly?: boolean }[];
   targets: { id: string; color: string | null; fulfilled: boolean }[];
   auxiliarySlot: { id: 'slot-4'; color: string | null; fulfilled: boolean; unlocked: boolean };
@@ -117,6 +117,18 @@ interface RuleCheckpoint {
   collected: CollectionReceipt[];
   moveCount: number;
   phase: SessionSnapshot['phase'];
+}
+
+export interface SessionRecoveryState {
+  readonly version: 1;
+  readonly sessionId: string;
+  readonly levelId: string;
+  readonly rules: RuleCheckpoint;
+  readonly history: readonly RuleCheckpoint[];
+  readonly undoCredits: number;
+  readonly pendingAd: AdRewardRequest | null;
+  readonly selectedBottleId: string | null;
+  readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
 }
 
 function validateLevel(level: LevelDefinition): void {
@@ -223,6 +235,13 @@ export function createGameSession(level: LevelDefinition) {
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
       moveCount, selectedBottleId, feedback, pendingAd, undoCredits, canUndo: history.length > 0,
+    });
+  }
+
+  function getRecoveryState(): SessionRecoveryState {
+    return structuredClone({
+      version: 1, sessionId, levelId, rules: captureRules(), history,
+      undoCredits, pendingAd, selectedBottleId, feedback,
     });
   }
 
@@ -379,5 +398,5 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   collectMatchingBottles([]);
-  return { getSnapshot, dispatch };
+  return { getSnapshot, getRecoveryState, dispatch };
 }

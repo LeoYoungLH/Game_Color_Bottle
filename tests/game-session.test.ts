@@ -948,11 +948,17 @@ test('undo restores hidden information and a collection-seal chain without revok
   session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
   session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
   session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const constrained = session.getSnapshot();
+  assert.deepEqual(session.dispatch({ type: 'pour', from: 'L', to: 'K' }).events, [
+    { type: 'poured', from: 'L', to: 'K', units: 1 },
+    { type: 'released', bottleId: 'K' },
+  ]);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'K')?.status, 'ready');
   const before = session.getSnapshot();
   const chain = session.dispatch({ type: 'pour', from: 'C', to: 'A' });
-  assert.deepEqual(chain.events.flatMap(event => event.type === 'collected' ? [event.bottleId] : []), ['A', 'I']);
+  assert.deepEqual(chain.events.flatMap(event => event.type === 'collected' ? [event.bottleId] : []), ['A', 'I', 'K']);
   assert.equal(session.getSnapshot().auxiliarySlot.fulfilled, true);
-  assert.equal(session.getSnapshot().targets[0]?.color, 'violet');
+  assert.equal(session.getSnapshot().targets[0]?.fulfilled, true);
   session.dispatch({ type: 'request-undo' });
   session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
   session.dispatch({ type: 'undo' });
@@ -963,6 +969,11 @@ test('undo restores hidden information and a collection-seal chain without revok
   assert.deepEqual(after.collected, before.collected);
   assert.equal(after.moveCount, before.moveCount);
   assert.equal(after.undoCredits, 0);
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'undo' });
+  assert.deepEqual(session.getSnapshot().bottles, constrained.bottles);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'K')?.status, 'receive-only');
   session.dispatch({ type: 'request-undo' });
   session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
   session.dispatch({ type: 'undo' });
@@ -1080,4 +1091,26 @@ test('rapid repeated undo spends one chance and leaves earlier history available
   assert.equal(restored.undoCredits, 0);
   assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-credit', events: [] });
   assert.deepEqual(session.getSnapshot(), restored);
+});
+
+test('recovery export keeps full rule history and credits separate from the player snapshot', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [{ id: 'A', layers: ['moss', 'moss', 'coral', 'coral'], hiddenLayers: [1] }, ...opening.bottles.slice(1)],
+  });
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'A')?.layers, ['moss', null, 'coral', 'coral']);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const recovery = session.getRecoveryState();
+  assert.equal(recovery.version, 1);
+  assert.equal(recovery.undoCredits, 1);
+  assert.equal(recovery.history.length, 1);
+  assert.deepEqual(recovery.history[0]?.bottles[0]?.layers[1], { color: 'moss', revealed: false });
+  assert.equal(session.getSnapshot().undoCredits, 1);
+  recovery.history[0]!.bottles[0]!.layers[1]!.color = 'invented';
+  recovery.rules.bottles[0]!.layers[0]!.color = 'invented';
+  assert.equal(session.getRecoveryState().history[0]?.bottles[0]?.layers[1]?.color, 'moss');
+  session.dispatch({ type: 'undo' });
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'A')?.layers, ['moss', null, 'coral', 'coral']);
 });
