@@ -655,7 +655,7 @@ test('a pending simulated ad freezes gameplay and non-success outcomes leave bot
     assert.equal(requested.accepted, true);
     const pending = session.getSnapshot().pendingAd!;
     assert.equal(pending.reward, 'empty-bottle');
-    assert.equal(pending.bottleId, 'ad-1');
+    assert.equal(pending.targetId, 'ad-1');
     assert.equal(pending.levelId, start.levelId);
     assert.equal(pending.sessionId, start.sessionId);
     assert.ok(pending.requestId);
@@ -672,7 +672,7 @@ test('a pending simulated ad freezes gameplay and non-success outcomes leave bot
       assert.deepEqual(session.getSnapshot(), waiting);
     }
     assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: pending, outcome }).events, [
-      { type: 'ad-result', bottleId: 'ad-1', outcome },
+      { type: 'ad-result', reward: 'empty-bottle', targetId: 'ad-1', outcome },
     ]);
     const after = session.getSnapshot();
     assert.equal(after.pendingAd, null);
@@ -692,7 +692,7 @@ test('a completed simulated ad unlocks only its requested bottle and never award
   session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
   const request = session.getSnapshot().pendingAd!;
   for (const changed of [
-    { ...request, bottleId: 'ad-2' },
+    { ...request, targetId: 'ad-2' },
     { ...request, reward: 'fourth-slot' },
     { ...request, levelId: 'other' },
     { ...request, sessionId: 'other' },
@@ -705,7 +705,7 @@ test('a completed simulated ad unlocks only its requested bottle and never award
     assert.deepEqual(session.getSnapshot(), before);
   }
   assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }).events, [
-    { type: 'ad-result', bottleId: 'ad-1', outcome: 'success' },
+    { type: 'ad-result', reward: 'empty-bottle', targetId: 'ad-1', outcome: 'success' },
     { type: 'ad-bottle-unlocked', bottleId: 'ad-1' },
   ]);
   const unlocked = session.getSnapshot();
@@ -769,9 +769,9 @@ test('unknown ad outcomes and edits to a returned request cannot poison the pend
   const result = session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
   const request = result.events.flatMap(event => event.type === 'ad-requested' ? [event.request] : [])[0];
   assert.ok(request);
-  Reflect.set(request, 'bottleId', 'ad-2');
+  Reflect.set(request, 'targetId', 'ad-2');
   const pending = session.getSnapshot().pendingAd!;
-  assert.equal(pending.bottleId, 'ad-1');
+  assert.equal(pending.targetId, 'ad-1');
   const before = session.getSnapshot();
   assert.deepEqual(Reflect.apply(session.dispatch, null, [{ type: 'resolve-ad', request: pending, outcome: 'unexpected' }]), {
     accepted: false, reason: 'stale-ad-result', events: [],
@@ -798,4 +798,108 @@ test('a late result from a cancelled request cannot replace a retry for the same
   assert.equal(session.getSnapshot().selectedBottleId, 'A');
   assert.equal(session.dispatch({ type: 'select-bottle', bottleId: 'ad-1' }).accepted, true);
   assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.layers, ['coral', 'coral']);
+});
+
+test('the auxiliary collection slot is locked when no target remains to assign', () => {
+  const session = createGameSession(opening);
+  const before = session.getSnapshot();
+  assert.deepEqual(before.auxiliarySlot, { id: 'slot-4', unlocked: false, color: null, fulfilled: false });
+  assert.equal(before.nextTarget, null);
+  assert.deepEqual(session.dispatch({ type: 'request-fourth-slot' }), {
+    accepted: false, reason: 'no-pending-target', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), before);
+});
+
+test('a fourth-slot reward takes one queued target and chains waiting full bottles without copying demand', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S05')!.definition;
+  const session = createGameSession(level);
+  const initial = session.getSnapshot();
+  assert.equal(initial.nextTarget, 'coral');
+  assert.equal(initial.collected.length, 0);
+  assert.deepEqual(initial.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+  const requested = session.dispatch({ type: 'request-fourth-slot' });
+  assert.equal(requested.accepted, true);
+  const pending = session.getSnapshot().pendingAd!;
+  assert.deepEqual([pending.reward, pending.targetId, pending.levelId, pending.sessionId], ['fourth-slot', 'slot-4', level.id, initial.sessionId]);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: pending, outcome: 'success' }).events, [
+    { type: 'ad-result', reward: 'fourth-slot', targetId: 'slot-4', outcome: 'success' },
+    { type: 'ad-slot-unlocked', slotId: 'slot-4', color: 'coral' },
+    { type: 'collected', bottleId: 'E', color: 'coral', units: 4, slotId: 'slot-4' },
+    { type: 'collected', bottleId: 'F', color: 'blue', units: 4, slotId: 'slot-4' },
+  ]);
+  const after = session.getSnapshot();
+  assert.deepEqual(after.auxiliarySlot, { id: 'slot-4', unlocked: true, color: null, fulfilled: true });
+  assert.equal(after.nextTarget, null);
+  assert.equal(after.collected.length, 2);
+  assert.deepEqual(after.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+  assert.deepEqual(session.dispatch({ type: 'request-fourth-slot' }), {
+    accepted: false, reason: 'slot-already-unlocked', events: [],
+  });
+  for (const [from, to] of [['B', 'A'], ['C', 'B'], ['D', 'C']] as const) {
+    assert.equal(session.dispatch({ type: 'pour', from, to }).accepted, true);
+  }
+  assert.equal(session.getSnapshot().phase, 'won');
+  assert.equal(session.getSnapshot().collected.length, 5);
+});
+
+test('empty-bottle and fourth-slot rewards remain separate across failed and stale results', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S05')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const bottleOnly = session.getSnapshot();
+  assert.equal(bottleOnly.bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  assert.equal(bottleOnly.auxiliarySlot.unlocked, false);
+  assert.equal(bottleOnly.nextTarget, 'coral');
+  session.dispatch({ type: 'request-fourth-slot' });
+  const pending = session.getSnapshot().pendingAd!;
+  assert.equal(pending.reward, 'fourth-slot');
+  assert.deepEqual(session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-2' }), {
+    accepted: false, reason: 'ad-request-pending', events: [],
+  });
+  for (const changed of [
+    { ...pending, targetId: 'ad-2' },
+    { ...pending, reward: 'empty-bottle' },
+    { ...pending, sessionId: 'old-session' },
+    { ...pending, requestId: 'old-request' },
+  ]) {
+    const before = session.getSnapshot();
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: changed, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(session.getSnapshot(), before);
+  }
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: pending, outcome: 'failed' }).events, [
+    { type: 'ad-result', reward: 'fourth-slot', targetId: 'slot-4', outcome: 'failed' },
+  ]);
+  assert.equal(session.getSnapshot().auxiliarySlot.unlocked, false);
+  assert.equal(session.getSnapshot().nextTarget, 'coral');
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  session.dispatch({ type: 'request-fourth-slot' });
+  const retry = session.getSnapshot();
+  assert.notEqual(retry.pendingAd?.requestId, pending.requestId);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: pending, outcome: 'success' }), {
+    accepted: false, reason: 'stale-ad-result', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), retry);
+  session.dispatch({ type: 'resolve-ad', request: retry.pendingAd!, outcome: 'cancelled' });
+  assert.equal(session.getSnapshot().auxiliarySlot.unlocked, false);
+});
+
+test('the fourth slot cannot request a reward after normal play consumes the shared queue', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S05')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'pour', from: 'B', to: 'A' });
+  const before = session.getSnapshot();
+  assert.equal(before.phase, 'playing');
+  assert.equal(before.nextTarget, null);
+  assert.equal(before.collected.length, 3);
+  assert.deepEqual(session.dispatch({ type: 'request-fourth-slot' }), {
+    accepted: false, reason: 'no-pending-target', events: [],
+  });
+  assert.deepEqual(session.getSnapshot(), before);
 });

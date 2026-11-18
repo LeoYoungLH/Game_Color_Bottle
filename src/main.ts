@@ -24,6 +24,8 @@ const reasons: Record<RejectionReason, string> = {
   'ad-already-unlocked': '这只广告空瓶已经解锁。',
   'ad-request-pending': '请先完成或关闭当前模拟广告。',
   'stale-ad-result': '这次模拟广告结果已过期，局面没有变化。',
+  'no-pending-target': '目前没有下一待分配目标，辅助收集槽暂时无法解锁。',
+  'slot-already-unlocked': '辅助收集槽已经解锁。',
 };
 
 let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = null;
@@ -62,12 +64,16 @@ function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const requested = result.events.find(event => event.type === 'ad-requested');
-  if (requested) return `正在模拟解锁 ${requested.request.bottleId}。`;
+  if (requested) return `正在模拟解锁 ${requested.request.reward === 'fourth-slot' ? '辅助收集槽' : requested.request.targetId}。`;
   const adResult = result.events.find(event => event.type === 'ad-result');
   if (adResult) {
-    if (adResult.outcome === 'success') return `广告空瓶 ${adResult.bottleId} 已解锁。`;
+    if (adResult.outcome === 'success') {
+      const receipts = result.events.filter(event => event.type === 'collected');
+      const target = adResult.reward === 'fourth-slot' ? '辅助收集槽' : `广告空瓶 ${adResult.targetId}`;
+      return `${target}已解锁。${receipts.length ? `已收取${receipts.map(event => colorName(event.color)).join('、')}。` : ''}`;
+    }
     const message = { cancelled: '模拟广告已提前关闭', failed: '模拟广告加载失败', unavailable: '当前没有可用的模拟广告' }[adResult.outcome];
-    return `${message}，瓶位未改变。`;
+    return `${message}，${adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
   }
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
@@ -148,6 +154,7 @@ app.addEventListener('click', event => {
     return;
   }
   switch (button.dataset.action) {
+    case 'request-fourth-slot': dispatch({ type: 'request-fourth-slot' }); break;
     case 'home': screen = 'home'; confirmRestart = false; render(); window.scrollTo({ top: 0 }); break;
     case 'continue': if (current) { screen = 'game'; render(); } break;
     case 'next': {

@@ -67,12 +67,16 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .section-heading, .board-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .section-heading h2 { font-size: 13px; font-weight: 650; }
 .section-heading span, .board-heading span:last-child { color: var(--muted); font-size: 10px; }
-.target-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+.target-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
 .target-card { min-width: 0; height: 83px; display: flex; align-items: center; justify-content: center; flex-direction: column; border: 1px solid #5b665e; border-bottom: 3px solid var(--paint); border-radius: 5px; background: #2a332e; }
 .target-card strong { font-size: 13px; line-height: 1.2; }
 .target-card small { color: #afbbb2; font-size: 10px; margin-top: 3px; }
 .target-symbol { color: var(--paint); font-size: 17px; line-height: 1; margin-bottom: 7px; }
 .target-card.fulfilled { border-color: #46514b; background: #242b28; color: #8c9990; }
+.auxiliary-slot.locked { --paint: #89948b; border: 1px dashed #88968b; color: #d5ddd6; }
+.auxiliary-slot.locked:not(:disabled):hover { border-color: var(--accent); background: #344139; }
+.auxiliary-slot .target-symbol svg { width: 19px; height: 19px; }
+.auxiliary-slot.open { border-top: 2px solid var(--accent); }
 .target-preview { color: var(--muted); font-size: 11px; padding: 10px 0 12px; border-bottom: 1px solid #3b4540; }
 .target-preview strong { color: var(--accent); font-weight: 600; }
 .board-area { padding: 14px 0 12px; background: #232b27; margin: 0 -18px; border-bottom: 1px solid #465048; }
