@@ -138,6 +138,11 @@ export type SolutionResult =
 export type HintResult =
   | { readonly status: 'step'; readonly from: string; readonly to: string; readonly color: string; readonly basis: 'verified-route' | 'legal-only'; readonly reason: 'empty-target' | 'matching-top' }
   | { readonly status: 'unavailable'; readonly reason: 'complete' | 'ad-pending' | 'budget-exhausted' | 'unsolvable' };
+export interface ReorderCandidate {
+  readonly bottleId: string;
+  readonly layers: readonly Readonly<LayerState>[];
+}
+export type CandidateResult = SolutionResult | { readonly status: 'invalid'; readonly reason: 'invalid-reorder' | 'no-change'; readonly moves: readonly []; readonly explored: 0 };
 
 function validateLevel(level: LevelDefinition): void {
   if (!level.id.trim() || !level.title.trim()) throw new Error('Invalid level: identity and title are required.');
@@ -223,6 +228,12 @@ export function createGameSession(level: LevelDefinition) {
     phase = state.phase;
   }
 
+  function restoreInspection(saved: RuleCheckpoint, historyLength: number, selection: string | null): void {
+    applyRules(saved);
+    history.length = historyLength;
+    selectedBottleId = selection;
+  }
+
   function restoreRules(saved: RuleCheckpoint): void {
     const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
     const fourthUnlocked = auxiliarySlot.unlocked;
@@ -271,9 +282,7 @@ export function createGameSession(level: LevelDefinition) {
         }
         valid &&= phase === 'won';
       } finally {
-        applyRules(start);
-        history.length = originalHistoryLength;
-        selectedBottleId = originalSelection;
+        restoreInspection(start, originalHistoryLength, originalSelection);
       }
       if (valid) return { status: 'solved', moves: witness.map(([from, to]) => [from, to]), explored: 0 };
     }
@@ -314,9 +323,42 @@ export function createGameSession(level: LevelDefinition) {
       return moves ? { status: 'solved', moves, explored }
         : { status: truncated ? 'unknown' : 'unsolvable', moves: [], explored };
     } finally {
-      applyRules(start);
-      history.length = originalHistoryLength;
-      selectedBottleId = originalSelection;
+      restoreInspection(start, originalHistoryLength, originalSelection);
+    }
+  }
+
+  function checkReorderCandidate(nodeBudget: number, reorders: readonly ReorderCandidate[]): CandidateResult {
+    if (!Number.isSafeInteger(nodeBudget) || nodeBudget < 0) throw new RangeError('Search budget must be a non-negative safe integer.');
+    if (pendingAd) return { status: 'unknown', moves: [], explored: 0 };
+    if (phase === 'won' || !reorders.length) return { status: 'invalid', reason: 'invalid-reorder', moves: [], explored: 0 };
+    const start = captureRules();
+    const originalHistoryLength = history.length;
+    const originalSelection = selectedBottleId;
+    const touched = new Set<string>();
+    let changed = false;
+    try {
+      for (const reorder of reorders) {
+        const bottle = bottles.find(b => b.id === reorder.bottleId);
+        if (!bottle || touched.has(reorder.bottleId) || bottle.status !== 'available'
+          || bottle.layers.length < 2 || bottle.layers.length >= BOTTLE_CAPACITY
+          || bottle.layers.every(layer => layer.color === bottle.layers[0]?.color)
+          || !Array.isArray(reorder.layers) || reorder.layers.length !== bottle.layers.length
+          || reorder.layers.some(layer => !layer || typeof layer.color !== 'string' || typeof layer.revealed !== 'boolean')) {
+          return { status: 'invalid', reason: 'invalid-reorder', moves: [], explored: 0 };
+        }
+        touched.add(reorder.bottleId);
+        const pairs = (layers: readonly LayerState[]) => layers.map(layer => JSON.stringify([layer.color, layer.revealed])).sort();
+        if (JSON.stringify(pairs(bottle.layers)) !== JSON.stringify(pairs(reorder.layers))) {
+          return { status: 'invalid', reason: 'invalid-reorder', moves: [], explored: 0 };
+        }
+        changed ||= JSON.stringify(bottle.layers) !== JSON.stringify(reorder.layers);
+        bottle.layers = reorder.layers.map(layer => ({ color: layer.color, revealed: layer.revealed }));
+        bottle.layers.at(-1)!.revealed = true;
+      }
+      if (!changed) return { status: 'invalid', reason: 'no-change', moves: [], explored: 0 };
+      return findSolution(nodeBudget);
+    } finally {
+      restoreInspection(start, originalHistoryLength, originalSelection);
     }
   }
 
@@ -492,5 +534,5 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   collectMatchingBottles([]);
-  return { getSnapshot, getRecoveryState, dispatch, findSolution, getHint };
+  return { getSnapshot, getRecoveryState, dispatch, findSolution, checkReorderCandidate, getHint };
 }

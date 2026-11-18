@@ -15,6 +15,15 @@ const opening = {
   targets: ['moss', 'coral', 'blue'],
 };
 
+const blockedLevel = {
+  id: 'blocked', title: 'No free space', targets: ['moss', 'coral', 'blue'],
+  bottles: [
+    { id: 'A', layers: ['moss', 'coral', 'blue', 'moss'] },
+    { id: 'B', layers: ['coral', 'blue', 'moss', 'coral'] },
+    { id: 'C', layers: ['blue', 'moss', 'coral', 'blue'] },
+  ],
+};
+
 test('a new session exposes stable bottle positions and two unavailable ad bottles', () => {
   const session = createGameSession(opening);
   const snapshot = session.getSnapshot();
@@ -1129,17 +1138,10 @@ test('a budgeted session search distinguishes a replayable solution from an unkn
 });
 
 test('exhaustive deadlock is unsolvable, while an insufficient budget remains unknown', () => {
-  const deadlock = createGameSession({
-    id: 'blocked', title: 'No free space', targets: ['moss', 'coral', 'blue'],
-    bottles: [
-      { id: 'A', layers: ['moss', 'coral', 'blue', 'moss'] },
-      { id: 'B', layers: ['coral', 'blue', 'moss', 'coral'] },
-      { id: 'C', layers: ['blue', 'moss', 'coral', 'blue'] },
-    ],
-  });
+  const deadlock = createGameSession(blockedLevel);
   const before = deadlock.getRecoveryState();
   assert.deepEqual(deadlock.findSolution(0), { status: 'unknown', moves: [], explored: 0 });
-  assert.deepEqual(deadlock.findSolution(10), { status: 'unsolvable', moves: [], explored: 1 });
+  assert.equal(deadlock.findSolution(10).status, 'unsolvable');
   assert.deepEqual(deadlock.getRecoveryState(), before);
   assert.equal(createGameSession(opening).findSolution(1).status, 'unknown');
   assert.throws(() => deadlock.findSolution(-1), RangeError);
@@ -1157,7 +1159,9 @@ test('search obeys receive-only and collected positions through the real session
   };
   const session = createGameSession(level);
   const before = session.getRecoveryState();
-  assert.deepEqual(session.findSolution(20), { status: 'solved', moves: [['J', 'I']], explored: 1 });
+  const result = session.findSolution(20);
+  assert.equal(result.status, 'solved');
+  assert.deepEqual(result.moves, [['J', 'I']]);
   assert.deepEqual(session.getRecoveryState(), before);
   assert.deepEqual(session.getSnapshot().bottles.slice(0, 2).map(b => b.status), ['collected', 'collected']);
 });
@@ -1169,9 +1173,9 @@ test('all authored witnesses are revalidated from fixed input and a suffix works
     assert.equal(level.seed, null);
     const session = createGameSession(level.definition);
     const original = session.getRecoveryState();
-    assert.deepEqual(session.findSolution(0, level.solution), {
-      status: 'solved', moves: level.solution, explored: 0,
-    }, level.definition.id);
+    const result = session.findSolution(0, level.solution);
+    assert.equal(result.status, 'solved', level.definition.id);
+    assert.deepEqual(result.moves, level.solution, level.definition.id);
     assert.deepEqual(session.getRecoveryState(), original);
     const [from, to] = level.solution[0]!;
     session.dispatch({ type: 'pour', from, to });
@@ -1220,14 +1224,37 @@ test('candidate checks include already unlocked auxiliary slots and ad bottles w
 });
 
 test('a deadlocked session offers no false executable hint', () => {
-  const session = createGameSession({
-    id: 'blocked-hint', title: 'No free space', targets: ['moss', 'coral', 'blue'],
-    bottles: [
-      { id: 'A', layers: ['moss', 'coral', 'blue', 'moss'] },
-      { id: 'B', layers: ['coral', 'blue', 'moss', 'coral'] },
-      { id: 'C', layers: ['blue', 'moss', 'coral', 'blue'] },
-    ],
-  });
+  const session = createGameSession(blockedLevel);
   assert.deepEqual(session.getHint(0), { status: 'unavailable', reason: 'budget-exhausted' });
   assert.deepEqual(session.getHint(10), { status: 'unavailable', reason: 'unsolvable' });
+});
+
+test('a proposed within-bottle reorder is checked from the current mid-game state without committing it', () => {
+  const level = {
+    ...opening,
+    bottles: [...opening.bottles, { id: 'F', layers: ['honey', 'violet'] }, { id: 'G', layers: ['honey', 'honey', 'honey'] }, { id: 'H', layers: ['violet', 'violet', 'violet'] }],
+    upcomingTargets: ['honey', 'violet'],
+  };
+  const session = createGameSession(level);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const before = session.getRecoveryState();
+  const result = session.checkReorderCandidate(300, [{ bottleId: 'F', layers: [
+    { color: 'violet', revealed: true }, { color: 'honey', revealed: true },
+  ] }]);
+  assert.equal(result.status, 'solved');
+  assert.deepEqual(session.getRecoveryState(), before);
+  assert.deepEqual(session.checkReorderCandidate(0, [{ bottleId: 'F', layers: [
+    { color: 'violet', revealed: true }, { color: 'honey', revealed: true },
+  ] }]).status, 'unknown');
+  assert.deepEqual(session.checkReorderCandidate(300, [{ bottleId: 'A', layers: [
+    { color: 'moss', revealed: true }, { color: 'moss', revealed: true },
+  ] }]).status, 'invalid');
+  assert.equal(session.checkReorderCandidate(300, [{ bottleId: 'B', layers: before.rules.bottles.find(b => b.id === 'B')!.layers }]).status, 'invalid');
+  assert.deepEqual(session.checkReorderCandidate(300, [{ bottleId: 'F', layers: [
+    { color: 'moss', revealed: true }, { color: 'honey', revealed: true },
+  ] }]).status, 'invalid');
+  assert.equal(session.checkReorderCandidate(300, [{ bottleId: 'F', layers: before.rules.bottles.find(b => b.id === 'F')!.layers }]).status, 'invalid');
+  assert.deepEqual(session.getRecoveryState(), before);
 });

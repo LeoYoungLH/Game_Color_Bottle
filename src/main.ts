@@ -166,7 +166,10 @@ app.addEventListener('click', event => {
       const hint = current.session.getHint(800, current.level.solution.slice(moveCount));
       if (hint.status === 'step') {
         const reason = hint.reason === 'empty-target' ? `${hint.to} 是可接水的空瓶` : `${hint.to} 顶层同色且尚有空间`;
-        notice = `提示：从 ${hint.from} 向 ${hint.to} 倒入${colorName(hint.color)}，${reason}。${hint.basis === 'verified-route' ? '后续路线已经规则回放验证。' : '当前操作合法；尚有隐藏信息，不保证后续通关。'}`;
+        const selected = current.session.getSnapshot().selectedBottleId;
+        const action = selected === hint.from ? `已选中 ${hint.from}，直接点击 ${hint.to}`
+          : selected ? `先取消 ${selected} 的选择，再点 ${hint.from}、${hint.to}` : `依次点击 ${hint.from}、${hint.to}`;
+        notice = `提示：${action}，将${colorName(hint.color)}倒入目标；${reason}。${hint.basis === 'verified-route' ? '后续路线已经规则回放验证。' : '当前操作合法；尚有隐藏信息，不保证后续通关。'}`;
       } else {
         notice = {
           complete: '本关已完成，无需提示。',
