@@ -116,9 +116,14 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .collected-mark { display: grid; place-items: center; width: min(56px, calc(100% - 2px)); height: clamp(84px, 24vw, 116px); margin: auto; border: 1px dashed #697b6d; border-radius: 10px; color: var(--teal); font-size: 21px; }
 .notice { min-height: 39px; display: flex; align-items: center; padding: 8px 0; color: #e1d4aa; font-size: 11px; line-height: 1.5; }
 .bench-actions { display: flex; justify-content: space-between; border-top: 1px solid #3a433f; padding-top: 10px; }
+.bench-secondary { display: flex; gap: 4px; }
 .tool-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 0; background: transparent; color: #d4dfd4; font-size: 12px; }
+.reward-tool { position: relative; min-width: 74px; justify-content: center; }
+.reward-tool svg:last-child:not(:first-child) { width: 13px; color: var(--accent); }
+.reward-count { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); color: #252820; font-size: 11px; line-height: 1; }
 .tool-button:hover:not(:disabled) { color: var(--accent); }
 .tool-button svg { width: 16px; }
+@media (max-width: 390px) { .bench-actions { gap: 2px; } .tool-button { gap: 3px; padding-inline: 4px; font-size: 11px; } .reward-tool { min-width: 65px; } }
 dialog { color: var(--ink); background: #28322c; border: 1px solid #79857a; border-radius: 8px; padding: 27px 22px; max-width: 380px; width: calc(100% - 34px); box-shadow: 0 20px 60px #070b09b3; }
 dialog::backdrop { background: #060b08c2; }
 .completion-dialog { text-align: center; }

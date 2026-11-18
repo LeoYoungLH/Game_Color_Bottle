@@ -46,7 +46,7 @@ export interface CollectionReceipt {
 }
 
 export interface AdRewardRequest {
-  readonly reward: 'empty-bottle' | 'fourth-slot';
+  readonly reward: 'empty-bottle' | 'fourth-slot' | 'undo';
   readonly targetId: string;
   readonly levelId: string;
   readonly sessionId: string;
@@ -74,6 +74,8 @@ export interface SessionSnapshot {
   readonly selectedBottleId: string | null;
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
   readonly pendingAd: AdRewardRequest | null;
+  readonly undoCredits: number;
+  readonly canUndo: boolean;
 }
 
 export type FeedbackKind = 'sound' | 'vibration';
@@ -84,8 +86,10 @@ export type PlayerAction =
   | { readonly type: 'set-feedback'; readonly kind: FeedbackKind; readonly enabled: boolean }
   | { readonly type: 'request-ad-bottle'; readonly bottleId: string }
   | { readonly type: 'request-fourth-slot' }
+  | { readonly type: 'request-undo' }
+  | { readonly type: 'undo' }
   | { readonly type: 'resolve-ad'; readonly request: Readonly<Record<keyof AdRewardRequest, string>>; readonly outcome: AdOutcome };
-export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result' | 'no-pending-target' | 'slot-already-unlocked';
+export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result' | 'no-pending-target' | 'slot-already-unlocked' | 'no-undo-history' | 'no-undo-credit' | 'undo-credit-available';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
   | { readonly type: 'revealed'; readonly bottleId: string; readonly color: string }
@@ -95,6 +99,8 @@ export type GameEvent =
   | { readonly type: 'ad-result'; readonly reward: AdRewardRequest['reward']; readonly targetId: string; readonly outcome: AdOutcome }
   | { readonly type: 'ad-bottle-unlocked'; readonly bottleId: string }
   | { readonly type: 'ad-slot-unlocked'; readonly slotId: 'slot-4'; readonly color: string }
+  | { readonly type: 'undo-credit-granted' }
+  | { readonly type: 'undone' }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -102,6 +108,16 @@ export type GameEvent =
 export type ActionResult =
   | { readonly accepted: true; readonly events: readonly GameEvent[] }
   | { readonly accepted: false; readonly reason: RejectionReason; readonly events: readonly [] };
+
+interface RuleCheckpoint {
+  bottles: { id: string; layers: LayerState[]; status: BottleStatus; sealThreshold?: number; receiveOnly?: boolean }[];
+  targets: { id: string; color: string | null; fulfilled: boolean }[];
+  auxiliarySlot: { id: 'slot-4'; color: string | null; fulfilled: boolean; unlocked: boolean };
+  nextTargetIndex: number;
+  collected: CollectionReceipt[];
+  moveCount: number;
+  phase: SessionSnapshot['phase'];
+}
 
 function validateLevel(level: LevelDefinition): void {
   if (!level.id.trim() || !level.title.trim()) throw new Error('Invalid level: identity and title are required.');
@@ -169,6 +185,35 @@ export function createGameSession(level: LevelDefinition) {
   let selectedBottleId: string | null = null;
   const feedback = { sound: false, vibration: false };
   let pendingAd: AdRewardRequest | null = null;
+  let undoCredits = 0;
+  const history: RuleCheckpoint[] = [];
+
+  function captureRules(): RuleCheckpoint {
+    return structuredClone({ bottles, targets, auxiliarySlot, nextTargetIndex, collected, moveCount, phase });
+  }
+
+  function restoreRules(saved: RuleCheckpoint): void {
+    const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
+    const fourthUnlocked = auxiliarySlot.unlocked;
+    const state = structuredClone(saved);
+    for (let index = 0; index < bottles.length; index++) Object.assign(bottles[index]!, state.bottles[index]!);
+    for (let index = 0; index < targets.length; index++) targets[index] = state.targets[index]!;
+    Object.assign(auxiliarySlot, state.auxiliarySlot);
+    nextTargetIndex = state.nextTargetIndex;
+    collected.splice(0, collected.length, ...state.collected);
+    moveCount = state.moveCount;
+    phase = state.phase;
+    for (const id of unlockedBottles) {
+      const bottle = bottles.find(b => b.id === id)!;
+      if (bottle.status === 'ad-locked') bottle.status = 'available';
+    }
+    if (fourthUnlocked && !auxiliarySlot.unlocked) {
+      auxiliarySlot.unlocked = true;
+      auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
+      collectMatchingBottles([]);
+    }
+    selectedBottleId = null;
+  }
 
   function getSnapshot(): SessionSnapshot {
     return structuredClone({
@@ -177,7 +222,7 @@ export function createGameSession(level: LevelDefinition) {
       targets, auxiliarySlot,
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
-      moveCount, selectedBottleId, feedback, pendingAd,
+      moveCount, selectedBottleId, feedback, pendingAd, undoCredits, canUndo: history.length > 0,
     });
   }
 
@@ -235,16 +280,32 @@ export function createGameSession(level: LevelDefinition) {
           const bottle = bottles.find(b => b.id === resolved.targetId)!;
           bottle.status = 'available';
           events.push({ type: 'ad-bottle-unlocked', bottleId: bottle.id });
-        } else {
+        } else if (resolved.reward === 'fourth-slot') {
           auxiliarySlot.unlocked = true;
           auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
           events.push({ type: 'ad-slot-unlocked', slotId: auxiliarySlot.id, color: auxiliarySlot.color });
           collectMatchingBottles(events);
+        } else {
+          undoCredits = 1;
+          events.push({ type: 'undo-credit-granted' });
         }
       }
       return { accepted: true, events };
     }
     if (pendingAd) return { accepted: false, reason: 'ad-request-pending', events: [] };
+    if (action.type === 'request-undo') {
+      if (!history.length) return { accepted: false, reason: 'no-undo-history', events: [] };
+      if (undoCredits) return { accepted: false, reason: 'undo-credit-available', events: [] };
+      pendingAd = { reward: 'undo', targetId: 'undo', levelId, sessionId, requestId: crypto.randomUUID() };
+      return { accepted: true, events: [{ type: 'ad-requested', request: structuredClone(pendingAd) }] };
+    }
+    if (action.type === 'undo') {
+      if (!history.length) return { accepted: false, reason: 'no-undo-history', events: [] };
+      if (!undoCredits) return { accepted: false, reason: 'no-undo-credit', events: [] };
+      restoreRules(history.pop()!);
+      undoCredits--;
+      return { accepted: true, events: [{ type: 'undone' }] };
+    }
     if (action.type === 'request-fourth-slot') {
       if (phase === 'won') return { accepted: false, reason: 'level-complete', events: [] };
       if (auxiliarySlot.unlocked) return { accepted: false, reason: 'slot-already-unlocked', events: [] };
@@ -299,6 +360,7 @@ export function createGameSession(level: LevelDefinition) {
     let segment = 0;
     for (let index = source.layers.length - 1; index >= 0 && source.layers[index]?.color === color; index--) segment++;
     const units = Math.min(segment, BOTTLE_CAPACITY - target.layers.length);
+    history.push(captureRules());
     target.layers.push(...source.layers.splice(source.layers.length - units, units).map(layer => ({ color: layer.color, revealed: true })));
     moveCount++;
     selectedBottleId = null;

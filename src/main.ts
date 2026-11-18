@@ -26,6 +26,9 @@ const reasons: Record<RejectionReason, string> = {
   'stale-ad-result': '这次模拟广告结果已过期，局面没有变化。',
   'no-pending-target': '目前没有下一待分配目标，辅助收集槽暂时无法解锁。',
   'slot-already-unlocked': '辅助收集槽已经解锁。',
+  'no-undo-history': '还没有可以撤回的倒水。',
+  'no-undo-credit': '需要先看模拟广告取得一次撤回机会。',
+  'undo-credit-available': '已有一次撤回机会，可以直接使用。',
 };
 
 let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = null;
@@ -64,17 +67,19 @@ function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const requested = result.events.find(event => event.type === 'ad-requested');
-  if (requested) return `正在模拟解锁 ${requested.request.reward === 'fourth-slot' ? '辅助收集槽' : requested.request.targetId}。`;
+  if (requested) return requested.request.reward === 'undo' ? '正在模拟获取一次撤回机会。' : `正在模拟解锁 ${requested.request.reward === 'fourth-slot' ? '辅助收集槽' : requested.request.targetId}。`;
   const adResult = result.events.find(event => event.type === 'ad-result');
   if (adResult) {
     if (adResult.outcome === 'success') {
+      if (adResult.reward === 'undo') return '已获得一次撤回机会，点击撤回才会使用。';
       const receipts = result.events.filter(event => event.type === 'collected');
       const target = adResult.reward === 'fourth-slot' ? '辅助收集槽' : `广告空瓶 ${adResult.targetId}`;
       return `${target}已解锁。${receipts.length ? `已收取${receipts.map(event => colorName(event.color)).join('、')}。` : ''}`;
     }
     const message = { cancelled: '模拟广告已提前关闭', failed: '模拟广告加载失败', unavailable: '当前没有可用的模拟广告' }[adResult.outcome];
-    return `${message}，${adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
+    return `${message}，${adResult.reward === 'undo' ? '撤回机会与局面' : adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
   }
+  if (result.events.some(event => event.type === 'undone')) return '已撤回上一次倒水及其连锁结果。';
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
   const released = result.events.filter(event => event.type === 'released');
@@ -100,7 +105,7 @@ function render(): void {
     app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel);
   }
   hydrateIcons(app);
-  const dialog = app.querySelector<HTMLDialogElement>('dialog');
+  const dialog = app.querySelector<HTMLDialogElement>('.ad-dialog') ?? app.querySelector<HTMLDialogElement>('dialog');
   if (dialog) dialog.showModal();
   else if (focused) app.querySelector<HTMLButtonElement>(`[data-focus-key="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
 }
@@ -154,6 +159,7 @@ app.addEventListener('click', event => {
     return;
   }
   switch (button.dataset.action) {
+    case 'undo': dispatch({ type: current?.session.getSnapshot().undoCredits ? 'undo' : 'request-undo' }); break;
     case 'request-fourth-slot': dispatch({ type: 'request-fourth-slot' }); break;
     case 'home': screen = 'home'; confirmRestart = false; render(); window.scrollTo({ top: 0 }); break;
     case 'continue': if (current) { screen = 'game'; render(); } break;

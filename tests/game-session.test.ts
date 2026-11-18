@@ -903,3 +903,181 @@ test('the fourth slot cannot request a reward after normal play consumes the sha
   });
   assert.deepEqual(session.getSnapshot(), before);
 });
+
+test('an undo reward grants one separate chance before restoring the last successful pour', () => {
+  const session = createGameSession(opening);
+  const initial = session.getSnapshot();
+  assert.equal(initial.undoCredits, 0);
+  assert.equal(initial.canUndo, false);
+  assert.deepEqual(session.dispatch({ type: 'request-undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  const poured = session.getSnapshot();
+  assert.equal(poured.canUndo, true);
+  assert.equal(session.dispatch({ type: 'request-undo' }).accepted, true);
+  const pending = session.getSnapshot().pendingAd!;
+  assert.deepEqual([pending.reward, pending.targetId], ['undo', 'undo']);
+  session.dispatch({ type: 'resolve-ad', request: pending, outcome: 'success' });
+  assert.equal(session.getSnapshot().undoCredits, 1);
+  assert.deepEqual(session.getSnapshot().bottles, poured.bottles);
+  assert.deepEqual(session.dispatch({ type: 'undo' }).events, [{ type: 'undone' }]);
+  const restored = session.getSnapshot();
+  assert.equal(restored.undoCredits, 0);
+  assert.equal(restored.canUndo, false);
+  assert.deepEqual(restored.bottles, initial.bottles);
+  assert.equal(restored.moveCount, initial.moveCount);
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
+});
+
+test('undo restores hidden information and a collection-seal chain without revoking ad entitlements', () => {
+  const level = {
+    ...opening,
+    bottles: [
+      { id: 'A', layers: ['moss', 'moss', 'coral', 'coral'], hiddenLayers: [1] },
+      ...opening.bottles.slice(1),
+      { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'], sealThreshold: 1 },
+      { id: 'K', layers: ['violet', 'violet', 'violet'], receiveOnly: true },
+      { id: 'L', layers: ['violet'] },
+    ],
+    upcomingTargets: ['honey', 'violet'],
+  };
+  const session = createGameSession(level);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  const revealed = session.getSnapshot();
+  assert.deepEqual(revealed.bottles.find(b => b.id === 'A')?.layers, ['moss', 'moss']);
+  session.dispatch({ type: 'request-fourth-slot' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const before = session.getSnapshot();
+  const chain = session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  assert.deepEqual(chain.events.flatMap(event => event.type === 'collected' ? [event.bottleId] : []), ['A', 'I']);
+  assert.equal(session.getSnapshot().auxiliarySlot.fulfilled, true);
+  assert.equal(session.getSnapshot().targets[0]?.color, 'violet');
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'undo' });
+  const after = session.getSnapshot();
+  assert.deepEqual(after.bottles, before.bottles);
+  assert.deepEqual(after.targets, before.targets);
+  assert.deepEqual(after.auxiliarySlot, before.auxiliarySlot);
+  assert.deepEqual(after.collected, before.collected);
+  assert.equal(after.moveCount, before.moveCount);
+  assert.equal(after.undoCredits, 0);
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'undo' });
+  const original = session.getSnapshot();
+  assert.deepEqual(original.bottles.find(b => b.id === 'A')?.layers, ['moss', null, 'coral', 'coral']);
+  assert.equal(original.bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  assert.equal(original.auxiliarySlot.unlocked, true);
+  assert.equal(original.auxiliarySlot.color, 'honey');
+  assert.equal(original.nextTarget, 'violet');
+  assert.equal(original.collected.length, 0);
+});
+
+test('undo cannot duplicate a credit, an ad result, or an already consumed turn', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-undo' });
+  const request = session.getSnapshot().pendingAd!;
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'ad-request-pending', events: [] });
+  session.dispatch({ type: 'resolve-ad', request, outcome: 'failed' });
+  assert.equal(session.getSnapshot().undoCredits, 0);
+  session.dispatch({ type: 'request-undo' });
+  const retry = session.getSnapshot().pendingAd!;
+  assert.notEqual(retry.requestId, request.requestId);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+  session.dispatch({ type: 'resolve-ad', request: retry, outcome: 'success' });
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: retry, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+  assert.equal(session.getSnapshot().undoCredits, 1);
+  assert.deepEqual(session.dispatch({ type: 'request-undo' }), { accepted: false, reason: 'undo-credit-available', events: [] });
+  session.dispatch({ type: 'undo' });
+  const after = session.getSnapshot();
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
+  assert.deepEqual(session.getSnapshot(), after);
+});
+
+test('undo reopens a completed level and restores a receive-only bottle', () => {
+  const session = createGameSession(opening);
+  for (const [from, to] of [['A', 'D'], ['C', 'A'], ['B', 'C'], ['B', 'D']] as const) session.dispatch({ type: 'pour', from, to });
+  assert.equal(session.getSnapshot().phase, 'won');
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.getSnapshot().phase, 'won');
+  session.dispatch({ type: 'undo' });
+  assert.equal(session.getSnapshot().phase, 'playing');
+  assert.equal(session.getSnapshot().collected.length, 2);
+  assert.equal(session.getSnapshot().moveCount, 3);
+  assert.equal(session.dispatch({ type: 'pour', from: 'B', to: 'D' }).events.at(-1)?.type, 'won');
+
+  const receiveOnly = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles, { id: 'I', layers: ['honey', 'honey', 'honey'], receiveOnly: true }, { id: 'J', layers: ['honey'] }],
+    upcomingTargets: ['honey'],
+  });
+  const before = receiveOnly.getSnapshot();
+  receiveOnly.dispatch({ type: 'pour', from: 'J', to: 'I' });
+  assert.equal(receiveOnly.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'ready');
+  receiveOnly.dispatch({ type: 'request-undo' });
+  receiveOnly.dispatch({ type: 'resolve-ad', request: receiveOnly.getSnapshot().pendingAd!, outcome: 'success' });
+  receiveOnly.dispatch({ type: 'undo' });
+  assert.deepEqual(receiveOnly.getSnapshot().bottles, before.bottles);
+});
+
+test('unlocking the fourth slot after a pour survives undo without duplicating targets', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles, { id: 'I', layers: ['honey', 'honey', 'honey', 'honey'] }],
+    upcomingTargets: ['honey'],
+  });
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-fourth-slot' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'I')?.status, 'collected');
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'undo' });
+  const restored = session.getSnapshot();
+  assert.equal(restored.moveCount, 0);
+  assert.equal(restored.auxiliarySlot.unlocked, true);
+  assert.equal(restored.bottles.find(b => b.id === 'I')?.status, 'collected');
+  assert.equal(restored.collected.length, 1);
+  assert.equal(restored.nextTarget, null);
+  assert.equal(restored.requiredCollections, 4);
+});
+
+test('non-success undo ads and wrong reward callbacks never grant a chance', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  const board = session.getSnapshot().bottles;
+  for (const outcome of ['cancelled', 'failed', 'unavailable'] as const) {
+    session.dispatch({ type: 'request-undo' });
+    const request = session.getSnapshot().pendingAd!;
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: { ...request, reward: 'empty-bottle' }, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: { ...request, targetId: 'ad-1' }, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.equal(session.dispatch({ type: 'resolve-ad', request, outcome }).accepted, true);
+    assert.equal(session.getSnapshot().undoCredits, 0);
+    assert.deepEqual(session.getSnapshot().bottles, board);
+    assert.equal(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'ad-locked');
+  }
+});
+
+test('rapid repeated undo spends one chance and leaves earlier history available', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  const afterFirst = session.getSnapshot();
+  session.dispatch({ type: 'pour', from: 'C', to: 'A' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.dispatch({ type: 'undo' }).accepted, true);
+  const restored = session.getSnapshot();
+  assert.deepEqual(restored.bottles, afterFirst.bottles);
+  assert.equal(restored.canUndo, true);
+  assert.equal(restored.undoCredits, 0);
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-credit', events: [] });
+  assert.deepEqual(session.getSnapshot(), restored);
+});
