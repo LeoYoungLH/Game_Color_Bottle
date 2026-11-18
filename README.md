@@ -5,7 +5,7 @@
 
 ## 当前可玩版本
 
-已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #10：广告获得一次机会的撤回](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/10)，包含 S01–S11 十一个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
+已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #11：验证过的提示与关卡回放](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/11)，包含 S01–S11 十一个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
 
 ```powershell
 npm.cmd ci

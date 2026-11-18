@@ -160,6 +160,24 @@ app.addEventListener('click', event => {
   }
   switch (button.dataset.action) {
     case 'undo': dispatch({ type: current?.session.getSnapshot().undoCredits ? 'undo' : 'request-undo' }); break;
+    case 'hint': {
+      if (!current) break;
+      const moveCount = current.session.getSnapshot().moveCount;
+      const hint = current.session.getHint(800, current.level.solution.slice(moveCount));
+      if (hint.status === 'step') {
+        const reason = hint.reason === 'empty-target' ? `${hint.to} 是可接水的空瓶` : `${hint.to} 顶层同色且尚有空间`;
+        notice = `提示：从 ${hint.from} 向 ${hint.to} 倒入${colorName(hint.color)}，${reason}。${hint.basis === 'verified-route' ? '后续路线已经规则回放验证。' : '当前操作合法；尚有隐藏信息，不保证后续通关。'}`;
+      } else {
+        notice = {
+          complete: '本关已完成，无需提示。',
+          'ad-pending': '请先完成或关闭当前模拟广告。',
+          'budget-exhausted': '当前搜索预算内无法提供可靠提示；可以继续探索、撤回或重开。',
+          unsolvable: '当前已开放瓶位没有可完成路线；可撤回、重开或尝试解锁剩余广告空瓶。',
+        }[hint.reason];
+      }
+      render();
+      break;
+    }
     case 'request-fourth-slot': dispatch({ type: 'request-fourth-slot' }); break;
     case 'home': screen = 'home'; confirmRestart = false; render(); window.scrollTo({ top: 0 }); break;
     case 'continue': if (current) { screen = 'game'; render(); } break;

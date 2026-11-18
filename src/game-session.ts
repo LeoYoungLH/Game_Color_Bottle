@@ -131,6 +131,14 @@ export interface SessionRecoveryState {
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
 }
 
+export type PourStep = readonly [from: string, to: string];
+export type SolutionResult =
+  | { readonly status: 'solved'; readonly moves: readonly PourStep[]; readonly explored: number }
+  | { readonly status: 'unsolvable' | 'unknown'; readonly moves: readonly []; readonly explored: number };
+export type HintResult =
+  | { readonly status: 'step'; readonly from: string; readonly to: string; readonly color: string; readonly basis: 'verified-route' | 'legal-only'; readonly reason: 'empty-target' | 'matching-top' }
+  | { readonly status: 'unavailable'; readonly reason: 'complete' | 'ad-pending' | 'budget-exhausted' | 'unsolvable' };
+
 function validateLevel(level: LevelDefinition): void {
   if (!level.id.trim() || !level.title.trim()) throw new Error('Invalid level: identity and title are required.');
   if (level.bottles.length < 1 || level.bottles.length > 22) throw new Error('Invalid level: total bottle positions must fit within 24, including two ad positions.');
@@ -204,9 +212,7 @@ export function createGameSession(level: LevelDefinition) {
     return structuredClone({ bottles, targets, auxiliarySlot, nextTargetIndex, collected, moveCount, phase });
   }
 
-  function restoreRules(saved: RuleCheckpoint): void {
-    const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
-    const fourthUnlocked = auxiliarySlot.unlocked;
+  function applyRules(saved: RuleCheckpoint): void {
     const state = structuredClone(saved);
     for (let index = 0; index < bottles.length; index++) Object.assign(bottles[index]!, state.bottles[index]!);
     for (let index = 0; index < targets.length; index++) targets[index] = state.targets[index]!;
@@ -215,6 +221,12 @@ export function createGameSession(level: LevelDefinition) {
     collected.splice(0, collected.length, ...state.collected);
     moveCount = state.moveCount;
     phase = state.phase;
+  }
+
+  function restoreRules(saved: RuleCheckpoint): void {
+    const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
+    const fourthUnlocked = auxiliarySlot.unlocked;
+    applyRules(saved);
     for (const id of unlockedBottles) {
       const bottle = bottles.find(b => b.id === id)!;
       if (bottle.status === 'ad-locked') bottle.status = 'available';
@@ -243,6 +255,88 @@ export function createGameSession(level: LevelDefinition) {
       version: 1, sessionId, levelId, rules: captureRules(), history,
       undoCredits, pendingAd, selectedBottleId, feedback,
     });
+  }
+
+  function findSolution(nodeBudget: number, witness?: readonly PourStep[]): SolutionResult {
+    if (!Number.isSafeInteger(nodeBudget) || nodeBudget < 0) throw new RangeError('Search budget must be a non-negative safe integer.');
+    if (pendingAd) return { status: 'unknown', moves: [], explored: 0 };
+    const start = captureRules();
+    const originalHistoryLength = history.length;
+    const originalSelection = selectedBottleId;
+    if (witness) {
+      let valid = true;
+      try {
+        for (const [from, to] of witness) {
+          if (!dispatch({ type: 'pour', from, to }).accepted) { valid = false; break; }
+        }
+        valid &&= phase === 'won';
+      } finally {
+        applyRules(start);
+        history.length = originalHistoryLength;
+        selectedBottleId = originalSelection;
+      }
+      if (valid) return { status: 'solved', moves: witness.map(([from, to]) => [from, to]), explored: 0 };
+    }
+    const visited = new Set<string>();
+    let explored = 0;
+    let truncated = false;
+
+    function visit(depth: number): PourStep[] | null {
+      if (phase === 'won') return [];
+      if (depth >= 256) { truncated = true; return null; }
+      const key = JSON.stringify({
+        bottles: bottles.map(b => [b.status, b.layers.map(l => l.color)]),
+        targets, auxiliarySlot, nextTargetIndex, collectedCount: collected.length,
+      });
+      if (visited.has(key)) return null;
+      if (explored >= nodeBudget) { truncated = true; return null; }
+      visited.add(key);
+      explored++;
+      const parent = captureRules();
+      const parentHistoryLength = history.length;
+      for (const source of bottles) {
+        if (source.status !== 'available' || !source.layers.length) continue;
+        for (const target of bottles) {
+          if (target === source || !['available', 'receive-only'].includes(target.status)) continue;
+          const result = dispatch({ type: 'pour', from: source.id, to: target.id });
+          if (!result.accepted) continue;
+          const continuation = visit(depth + 1);
+          applyRules(parent);
+          history.length = parentHistoryLength;
+          if (continuation) return [[source.id, target.id], ...continuation];
+        }
+      }
+      return null;
+    }
+
+    try {
+      const moves = visit(0);
+      return moves ? { status: 'solved', moves, explored }
+        : { status: truncated ? 'unknown' : 'unsolvable', moves: [], explored };
+    } finally {
+      applyRules(start);
+      history.length = originalHistoryLength;
+      selectedBottleId = originalSelection;
+    }
+  }
+
+  function getHint(nodeBudget: number, witness?: readonly PourStep[]): HintResult {
+    if (phase === 'won') return { status: 'unavailable', reason: 'complete' };
+    if (pendingAd) return { status: 'unavailable', reason: 'ad-pending' };
+    const result = findSolution(nodeBudget, witness);
+    if (result.status !== 'solved') {
+      return { status: 'unavailable', reason: result.status === 'unknown' ? 'budget-exhausted' : 'unsolvable' };
+    }
+    const [from, to] = result.moves[0] ?? [];
+    const visible = getSnapshot();
+    const source = visible.bottles.find(b => b.id === from);
+    const target = visible.bottles.find(b => b.id === to);
+    const color = source?.layers.at(-1);
+    if (!from || !to || !target || !color) return { status: 'unavailable', reason: 'budget-exhausted' };
+    const concealed = bottles.some(b => b.status === 'sealed' || b.layers.some(layer => !layer.revealed));
+    return { status: 'step', from, to, color,
+      basis: concealed ? 'legal-only' : 'verified-route',
+      reason: target.layers.length ? 'matching-top' : 'empty-target' };
   }
 
   function collectMatchingBottles(events: GameEvent[]): void {
@@ -398,5 +492,5 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   collectMatchingBottles([]);
-  return { getSnapshot, getRecoveryState, dispatch };
+  return { getSnapshot, getRecoveryState, dispatch, findSolution, getHint };
 }
