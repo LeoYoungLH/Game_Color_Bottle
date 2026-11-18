@@ -1,5 +1,6 @@
 export const BOTTLE_CAPACITY = 4;
 export const AD_BOTTLE_IDS = ['ad-1', 'ad-2'] as const;
+const MAX_SHUFFLE_CANDIDATES = 128;
 
 export function isAdBottleId(id: string): boolean {
   return AD_BOTTLE_IDS.some(adId => adId === id);
@@ -380,46 +381,57 @@ export function createGameSession(level: LevelDefinition) {
       && b.layers.some(layer => layer.color !== b.layers[0]?.color));
   }
 
-  function shuffleCandidates(): ReorderCandidate[][] {
+  function shuffleCandidates(): { candidates: ReorderCandidate[][]; truncated: boolean } {
     const options = eligibleShuffleBottles().map(bottle => {
       const variants: ReorderCandidate[] = [];
       const seen = new Set<string>();
+      const addVariant = (layers: LayerState[]) => {
+        const key = JSON.stringify(layers);
+        if (colorOrder(layers) !== colorOrder(bottle.layers) && !seen.has(key)) {
+          seen.add(key);
+          variants.push({ bottleId: bottle.id, layers });
+        }
+      };
       for (let first = 0; first < bottle.layers.length; first++) {
         for (let second = first + 1; second < bottle.layers.length; second++) {
           const layers = structuredClone(bottle.layers);
           [layers[first], layers[second]] = [layers[second]!, layers[first]!];
-          const key = JSON.stringify(layers);
-          if (colorOrder(layers) !== colorOrder(bottle.layers) && !seen.has(key)) {
-            seen.add(key);
-            variants.push({ bottleId: bottle.id, layers });
-          }
+          addVariant(layers);
         }
       }
       if (bottle.layers.length === 3) {
         for (const offset of [1, 2]) {
-          const layers = [...bottle.layers.slice(offset), ...bottle.layers.slice(0, offset)];
-          const key = JSON.stringify(layers);
-          if (colorOrder(layers) !== colorOrder(bottle.layers) && !seen.has(key)) {
-            seen.add(key);
-            variants.push({ bottleId: bottle.id, layers });
-          }
+          addVariant([...bottle.layers.slice(offset), ...bottle.layers.slice(0, offset)]);
         }
       }
       return variants;
     });
     const candidates: ReorderCandidate[][] = [];
-    if (options.length > 1) candidates.push(options.map(variants => variants[0]!).filter(Boolean));
-    for (const variants of options) for (const variant of variants) candidates.push([variant]);
-    return candidates;
+    let truncated = false;
+    function combine(index: number, chosen: ReorderCandidate[]): void {
+      if (candidates.length === MAX_SHUFFLE_CANDIDATES) { truncated = true; return; }
+      if (index === options.length) {
+        if (chosen.length) candidates.push([...chosen]);
+        return;
+      }
+      for (const variant of [...options[index]!, null]) {
+        if (variant) chosen.push(variant);
+        combine(index + 1, chosen);
+        if (variant) chosen.pop();
+        if (truncated) return;
+      }
+    }
+    combine(0, []);
+    return { candidates, truncated };
   }
 
   function useShuffle(nodeBudget: number): ActionResult {
     if (!Number.isSafeInteger(nodeBudget) || nodeBudget < 0) throw new RangeError('Search budget must be a non-negative safe integer.');
     if (!shuffleCredits) return { accepted: false, reason: 'no-shuffle-credit', events: [] };
-    const candidates = shuffleCandidates();
+    const { candidates, truncated } = shuffleCandidates();
     if (!candidates.length) return { accepted: false, reason: 'no-shuffle-candidate', events: [] };
     let remaining = nodeBudget;
-    let uncertain = false;
+    let uncertain = truncated;
     for (const candidate of candidates) {
       const result = checkReorderCandidate(remaining, candidate);
       remaining -= result.explored;

@@ -1289,11 +1289,14 @@ test('a simulated shuffle reward grants one independent chance before a verified
   assert.deepEqual(after.targets, initial.targets);
   assert.deepEqual(after.collected, initial.collected);
   assert.equal(after.moveCount, 0);
-  assert.equal(session.findSolution(800).status, 'solved');
   assert.deepEqual(session.dispatch({ type: 'shuffle' }), { accepted: false, reason: 'no-shuffle-credit', events: [] });
   const spent = session.getSnapshot();
   assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
   assert.deepEqual(session.getSnapshot(), spent);
+  for (const [from, to] of [['B', 'D'], ['C', 'D'], ['A', 'B'], ['A', 'C']] as const) {
+    assert.equal(session.dispatch({ type: 'pour', from, to }).accepted, true);
+  }
+  assert.equal(session.getSnapshot().phase, 'won');
 });
 
 test('shuffle reward outcomes remain isolated from undo, bottles and fourth slot', async () => {
@@ -1362,11 +1365,7 @@ test('invalid or budget-limited shuffle preserves chance and history; success st
   assert.deepEqual(shuffled.targets, beforeVisible.targets);
   assert.deepEqual(shuffled.collected, beforeVisible.collected);
   assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
-  const route = session.findSolution(800);
-  assert.equal(route.status, 'solved');
-  if (route.status !== 'solved') return;
-  const [from, to] = route.moves[0]!;
-  session.dispatch({ type: 'pour', from, to });
+  assert.equal(session.dispatch({ type: 'pour', from: 'D', to: 'E' }).accepted, true);
   session.dispatch({ type: 'undo' });
   assert.deepEqual(session.getSnapshot().bottles, shuffled.bottles);
   assert.equal(session.getSnapshot().undoCredits, 0);
@@ -1426,4 +1425,28 @@ test('moving only a hidden marker between equal colors is not a meaningful shuff
     { color: 'honey', revealed: true }, { color: 'honey', revealed: false }, { color: 'violet', revealed: true },
   ] }]), { status: 'invalid', reason: 'no-change', moves: [], explored: 0 });
   assert.deepEqual(session.getRecoveryState(), before);
+});
+
+test('a verified candidate can reorder more than one eligible bottle without crossing inventories', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles,
+      { id: 'F', layers: ['honey', 'violet'] }, { id: 'G', layers: ['honey', 'honey', 'honey'] },
+      { id: 'H', layers: ['violet', 'violet', 'violet'] },
+      { id: 'M', layers: ['amber', 'mint'] }, { id: 'N', layers: ['amber', 'amber', 'amber'] },
+      { id: 'O', layers: ['mint', 'mint', 'mint'] },
+    ],
+    upcomingTargets: ['honey', 'violet', 'amber', 'mint'],
+  });
+  const before = session.getSnapshot();
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.deepEqual(session.dispatch({ type: 'shuffle' }).events, [{ type: 'shuffled', bottleIds: ['F', 'M'] }]);
+  const after = session.getSnapshot();
+  assert.deepEqual(after.bottles.find(b => b.id === 'F')?.layers, ['violet', 'honey']);
+  assert.deepEqual(after.bottles.find(b => b.id === 'M')?.layers, ['mint', 'amber']);
+  for (const id of ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'N', 'O', 'ad-1', 'ad-2']) {
+    assert.deepEqual(after.bottles.find(b => b.id === id), before.bottles.find(b => b.id === id));
+  }
+  assert.equal(after.collected.length, 0);
 });
