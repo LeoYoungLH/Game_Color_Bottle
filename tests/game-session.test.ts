@@ -1258,3 +1258,172 @@ test('a proposed within-bottle reorder is checked from the current mid-game stat
   assert.equal(session.checkReorderCandidate(300, [{ bottleId: 'F', layers: before.rules.bottles.find(b => b.id === 'F')!.layers }]).status, 'invalid');
   assert.deepEqual(session.getRecoveryState(), before);
 });
+
+test('a simulated shuffle reward grants one independent chance before a verified reorder', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S03')!.definition;
+  const session = createGameSession(level);
+  const initial = session.getSnapshot();
+  assert.equal(initial.shuffleCredits, 0);
+  assert.equal(initial.canShuffle, true);
+  assert.equal(session.dispatch({ type: 'request-shuffle' }).accepted, true);
+  const request = session.getSnapshot().pendingAd!;
+  assert.deepEqual([request.reward, request.targetId], ['shuffle', 'shuffle']);
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }).events, [
+    { type: 'ad-result', reward: 'shuffle', targetId: 'shuffle', outcome: 'success' },
+    { type: 'shuffle-credit-granted' },
+  ]);
+  const earned = session.getSnapshot();
+  assert.equal(earned.shuffleCredits, 1);
+  assert.equal(earned.undoCredits, 0);
+  assert.deepEqual(earned.bottles, initial.bottles);
+  const used = session.dispatch({ type: 'shuffle' });
+  assert.equal(used.accepted, true);
+  const after = session.getSnapshot();
+  assert.equal(after.shuffleCredits, 0);
+  assert.notDeepEqual(after.bottles.find(b => b.id === 'B')?.layers, initial.bottles.find(b => b.id === 'B')?.layers);
+  assert.deepEqual(after.bottles.find(b => b.id === 'B')?.layers.toSorted(), initial.bottles.find(b => b.id === 'B')?.layers.toSorted());
+  for (const id of ['A', 'C', 'D', 'E', 'F', 'ad-1', 'ad-2']) {
+    assert.deepEqual(after.bottles.find(b => b.id === id), initial.bottles.find(b => b.id === id));
+  }
+  assert.deepEqual(after.targets, initial.targets);
+  assert.deepEqual(after.collected, initial.collected);
+  assert.equal(after.moveCount, 0);
+  assert.equal(session.findSolution(800).status, 'solved');
+  assert.deepEqual(session.dispatch({ type: 'shuffle' }), { accepted: false, reason: 'no-shuffle-credit', events: [] });
+  const spent = session.getSnapshot();
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+  assert.deepEqual(session.getSnapshot(), spent);
+});
+
+test('shuffle reward outcomes remain isolated from undo, bottles and fourth slot', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const session = createGameSession(BASIC_LEVELS.find(candidate => candidate.definition.id === 'S03')!.definition);
+  for (const outcome of ['cancelled', 'failed', 'unavailable'] as const) {
+    session.dispatch({ type: 'request-shuffle' });
+    const pending = session.getSnapshot().pendingAd!;
+    const before = session.getSnapshot();
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: { ...pending, reward: 'undo' }, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(session.dispatch({ type: 'resolve-ad', request: { ...pending, targetId: 'ad-1' }, outcome: 'success' }), {
+      accepted: false, reason: 'stale-ad-result', events: [],
+    });
+    assert.deepEqual(session.getSnapshot(), before);
+    session.dispatch({ type: 'resolve-ad', request: pending, outcome });
+    assert.equal(session.getSnapshot().shuffleCredits, 0);
+    assert.equal(session.getSnapshot().undoCredits, 0);
+  }
+  session.dispatch({ type: 'request-shuffle' });
+  const request = session.getSnapshot().pendingAd!;
+  session.dispatch({ type: 'resolve-ad', request, outcome: 'success' });
+  const credited = session.getSnapshot();
+  assert.equal(credited.shuffleCredits, 1);
+  assert.equal(credited.undoCredits, 0);
+  assert.equal(credited.auxiliarySlot.unlocked, false);
+  assert.deepEqual(credited.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+  assert.deepEqual(session.dispatch({ type: 'request-shuffle' }), { accepted: false, reason: 'shuffle-credit-available', events: [] });
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+  assert.deepEqual(session.getSnapshot(), credited);
+});
+
+test('invalid or budget-limited shuffle preserves chance and history; success starts a new undo boundary', () => {
+  const level = {
+    ...opening,
+    bottles: [
+      ...opening.bottles,
+      { id: 'F', layers: ['honey', 'violet'] },
+      { id: 'G', layers: ['honey', 'honey', 'honey'] },
+      { id: 'H', layers: ['violet', 'violet', 'violet'] },
+      { id: 'I', layers: ['amber', 'amber', 'amber', 'amber'], sealThreshold: 1 },
+      { id: 'K', layers: ['mint', 'mint', 'mint'], receiveOnly: true },
+      { id: 'L', layers: ['mint'] },
+    ],
+    upcomingTargets: ['honey', 'violet', 'amber', 'mint'],
+  };
+  const session = createGameSession(level);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const before = session.getRecoveryState();
+  const beforeVisible = session.getSnapshot();
+  assert.deepEqual(session.dispatch({ type: 'shuffle', nodeBudget: 0 }), { accepted: false, reason: 'shuffle-unknown', events: [] });
+  assert.deepEqual(session.getRecoveryState(), before);
+  assert.equal(session.dispatch({ type: 'shuffle', nodeBudget: 800 }).accepted, true);
+  const shuffled = session.getSnapshot();
+  assert.equal(shuffled.shuffleCredits, 0);
+  assert.equal(shuffled.undoCredits, 1);
+  assert.equal(shuffled.canUndo, false);
+  for (const id of ['B', 'C', 'I', 'K', 'L', 'ad-1', 'ad-2']) {
+    assert.deepEqual(shuffled.bottles.find(b => b.id === id), beforeVisible.bottles.find(b => b.id === id));
+  }
+  assert.deepEqual(shuffled.targets, beforeVisible.targets);
+  assert.deepEqual(shuffled.collected, beforeVisible.collected);
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
+  const route = session.findSolution(800);
+  assert.equal(route.status, 'solved');
+  if (route.status !== 'solved') return;
+  const [from, to] = route.moves[0]!;
+  session.dispatch({ type: 'pour', from, to });
+  session.dispatch({ type: 'undo' });
+  assert.deepEqual(session.getSnapshot().bottles, shuffled.bottles);
+  assert.equal(session.getSnapshot().undoCredits, 0);
+});
+
+test('no eligible bottle never requests a useless shuffle ad or spends an existing chance', async () => {
+  const noObject = createGameSession(opening);
+  const initial = noObject.getSnapshot();
+  assert.equal(initial.canShuffle, false);
+  assert.deepEqual(noObject.dispatch({ type: 'request-shuffle' }), { accepted: false, reason: 'no-shuffle-candidate', events: [] });
+  assert.deepEqual(noObject.getSnapshot(), initial);
+
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const session = createGameSession(BASIC_LEVELS.find(candidate => candidate.definition.id === 'S03')!.definition);
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.dispatch({ type: 'pour', from: 'B', to: 'E' }).accepted, true);
+  const before = session.getRecoveryState();
+  assert.equal(session.getSnapshot().canShuffle, false);
+  assert.deepEqual(session.dispatch({ type: 'shuffle' }), { accepted: false, reason: 'no-shuffle-candidate', events: [] });
+  assert.deepEqual(session.getRecoveryState(), before);
+});
+
+test('a hidden layer moves with its color and is revealed when shuffle makes it the top layer', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles,
+      { id: 'F', layers: ['honey', 'violet'], hiddenLayers: [0] },
+      { id: 'G', layers: ['honey', 'honey', 'honey'] },
+      { id: 'H', layers: ['violet', 'violet', 'violet'] },
+    ],
+    upcomingTargets: ['honey', 'violet'],
+  });
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'F')?.layers, [null, 'violet']);
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.dispatch({ type: 'shuffle' }).accepted, true);
+  assert.deepEqual(session.getSnapshot().bottles.find(b => b.id === 'F')?.layers, ['violet', 'honey']);
+  assert.deepEqual(session.getRecoveryState().rules.bottles.find(b => b.id === 'F')?.layers, [
+    { color: 'violet', revealed: true }, { color: 'honey', revealed: true },
+  ]);
+  assert.equal(session.getSnapshot().collected.length, 0);
+});
+
+test('moving only a hidden marker between equal colors is not a meaningful shuffle', () => {
+  const session = createGameSession({
+    ...opening,
+    bottles: [...opening.bottles,
+      { id: 'F', layers: ['honey', 'honey', 'violet'], hiddenLayers: [0] },
+      { id: 'G', layers: ['honey', 'honey'] },
+      { id: 'H', layers: ['violet', 'violet', 'violet'] },
+    ],
+    upcomingTargets: ['honey', 'violet'],
+  });
+  const before = session.getRecoveryState();
+  assert.deepEqual(session.checkReorderCandidate(800, [{ bottleId: 'F', layers: [
+    { color: 'honey', revealed: true }, { color: 'honey', revealed: false }, { color: 'violet', revealed: true },
+  ] }]), { status: 'invalid', reason: 'no-change', moves: [], explored: 0 });
+  assert.deepEqual(session.getRecoveryState(), before);
+});

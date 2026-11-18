@@ -38,6 +38,10 @@ interface LayerState {
   revealed: boolean;
 }
 
+function colorOrder(layers: readonly LayerState[]): string {
+  return JSON.stringify(layers.map(layer => layer.color));
+}
+
 export interface CollectionReceipt {
   readonly bottleId: string;
   readonly color: string;
@@ -46,7 +50,7 @@ export interface CollectionReceipt {
 }
 
 export interface AdRewardRequest {
-  readonly reward: 'empty-bottle' | 'fourth-slot' | 'undo';
+  readonly reward: 'empty-bottle' | 'fourth-slot' | 'undo' | 'shuffle';
   readonly targetId: string;
   readonly levelId: string;
   readonly sessionId: string;
@@ -76,6 +80,8 @@ export interface SessionSnapshot {
   readonly pendingAd: AdRewardRequest | null;
   readonly undoCredits: number;
   readonly canUndo: boolean;
+  readonly shuffleCredits: number;
+  readonly canShuffle: boolean;
 }
 
 export type FeedbackKind = 'sound' | 'vibration';
@@ -88,8 +94,10 @@ export type PlayerAction =
   | { readonly type: 'request-fourth-slot' }
   | { readonly type: 'request-undo' }
   | { readonly type: 'undo' }
+  | { readonly type: 'request-shuffle' }
+  | { readonly type: 'shuffle'; readonly nodeBudget?: number }
   | { readonly type: 'resolve-ad'; readonly request: Readonly<Record<keyof AdRewardRequest, string>>; readonly outcome: AdOutcome };
-export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result' | 'no-pending-target' | 'slot-already-unlocked' | 'no-undo-history' | 'no-undo-credit' | 'undo-credit-available';
+export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result' | 'no-pending-target' | 'slot-already-unlocked' | 'no-undo-history' | 'no-undo-credit' | 'undo-credit-available' | 'no-shuffle-candidate' | 'no-shuffle-credit' | 'shuffle-credit-available' | 'shuffle-unverified' | 'shuffle-unknown';
 export type GameEvent =
   | { readonly type: 'poured'; readonly from: string; readonly to: string; readonly units: number }
   | { readonly type: 'revealed'; readonly bottleId: string; readonly color: string }
@@ -101,6 +109,8 @@ export type GameEvent =
   | { readonly type: 'ad-slot-unlocked'; readonly slotId: 'slot-4'; readonly color: string }
   | { readonly type: 'undo-credit-granted' }
   | { readonly type: 'undone' }
+  | { readonly type: 'shuffle-credit-granted' }
+  | { readonly type: 'shuffled'; readonly bottleIds: readonly string[] }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -126,6 +136,7 @@ export interface SessionRecoveryState {
   readonly rules: RuleCheckpoint;
   readonly history: readonly RuleCheckpoint[];
   readonly undoCredits: number;
+  readonly shuffleCredits: number;
   readonly pendingAd: AdRewardRequest | null;
   readonly selectedBottleId: string | null;
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
@@ -211,6 +222,7 @@ export function createGameSession(level: LevelDefinition) {
   const feedback = { sound: false, vibration: false };
   let pendingAd: AdRewardRequest | null = null;
   let undoCredits = 0;
+  let shuffleCredits = 0;
   const history: RuleCheckpoint[] = [];
 
   function captureRules(): RuleCheckpoint {
@@ -258,13 +270,14 @@ export function createGameSession(level: LevelDefinition) {
       nextTarget: upcomingTargets[nextTargetIndex] ?? null,
       collected, requiredCollections,
       moveCount, selectedBottleId, feedback, pendingAd, undoCredits, canUndo: history.length > 0,
+      shuffleCredits, canShuffle: phase === 'playing' && eligibleShuffleBottles().length > 0,
     });
   }
 
   function getRecoveryState(): SessionRecoveryState {
     return structuredClone({
       version: 1, sessionId, levelId, rules: captureRules(), history,
-      undoCredits, pendingAd, selectedBottleId, feedback,
+      undoCredits, shuffleCredits, pendingAd, selectedBottleId, feedback,
     });
   }
 
@@ -351,7 +364,7 @@ export function createGameSession(level: LevelDefinition) {
         if (JSON.stringify(pairs(bottle.layers)) !== JSON.stringify(pairs(reorder.layers))) {
           return { status: 'invalid', reason: 'invalid-reorder', moves: [], explored: 0 };
         }
-        changed ||= JSON.stringify(bottle.layers) !== JSON.stringify(reorder.layers);
+        changed ||= colorOrder(bottle.layers) !== colorOrder(reorder.layers);
         bottle.layers = reorder.layers.map(layer => ({ color: layer.color, revealed: layer.revealed }));
         bottle.layers.at(-1)!.revealed = true;
       }
@@ -360,6 +373,71 @@ export function createGameSession(level: LevelDefinition) {
     } finally {
       restoreInspection(start, originalHistoryLength, originalSelection);
     }
+  }
+
+  function eligibleShuffleBottles() {
+    return bottles.filter(b => b.status === 'available' && b.layers.length > 1 && b.layers.length < BOTTLE_CAPACITY
+      && b.layers.some(layer => layer.color !== b.layers[0]?.color));
+  }
+
+  function shuffleCandidates(): ReorderCandidate[][] {
+    const options = eligibleShuffleBottles().map(bottle => {
+      const variants: ReorderCandidate[] = [];
+      const seen = new Set<string>();
+      for (let first = 0; first < bottle.layers.length; first++) {
+        for (let second = first + 1; second < bottle.layers.length; second++) {
+          const layers = structuredClone(bottle.layers);
+          [layers[first], layers[second]] = [layers[second]!, layers[first]!];
+          const key = JSON.stringify(layers);
+          if (colorOrder(layers) !== colorOrder(bottle.layers) && !seen.has(key)) {
+            seen.add(key);
+            variants.push({ bottleId: bottle.id, layers });
+          }
+        }
+      }
+      if (bottle.layers.length === 3) {
+        for (const offset of [1, 2]) {
+          const layers = [...bottle.layers.slice(offset), ...bottle.layers.slice(0, offset)];
+          const key = JSON.stringify(layers);
+          if (colorOrder(layers) !== colorOrder(bottle.layers) && !seen.has(key)) {
+            seen.add(key);
+            variants.push({ bottleId: bottle.id, layers });
+          }
+        }
+      }
+      return variants;
+    });
+    const candidates: ReorderCandidate[][] = [];
+    if (options.length > 1) candidates.push(options.map(variants => variants[0]!).filter(Boolean));
+    for (const variants of options) for (const variant of variants) candidates.push([variant]);
+    return candidates;
+  }
+
+  function useShuffle(nodeBudget: number): ActionResult {
+    if (!Number.isSafeInteger(nodeBudget) || nodeBudget < 0) throw new RangeError('Search budget must be a non-negative safe integer.');
+    if (!shuffleCredits) return { accepted: false, reason: 'no-shuffle-credit', events: [] };
+    const candidates = shuffleCandidates();
+    if (!candidates.length) return { accepted: false, reason: 'no-shuffle-candidate', events: [] };
+    let remaining = nodeBudget;
+    let uncertain = false;
+    for (const candidate of candidates) {
+      const result = checkReorderCandidate(remaining, candidate);
+      remaining -= result.explored;
+      if (result.status === 'solved') {
+        for (const reorder of candidate) {
+          const bottle = bottles.find(b => b.id === reorder.bottleId)!;
+          bottle.layers = reorder.layers.map(layer => ({ color: layer.color, revealed: layer.revealed }));
+          bottle.layers.at(-1)!.revealed = true;
+        }
+        history.length = 0;
+        selectedBottleId = null;
+        shuffleCredits--;
+        return { accepted: true, events: [{ type: 'shuffled', bottleIds: candidate.map(item => item.bottleId) }] };
+      }
+      if (result.status === 'unknown') uncertain = true;
+      if (!remaining) break;
+    }
+    return { accepted: false, reason: uncertain ? 'shuffle-unknown' : 'shuffle-unverified', events: [] };
   }
 
   function getHint(nodeBudget: number, witness?: readonly PourStep[]): HintResult {
@@ -440,14 +518,28 @@ export function createGameSession(level: LevelDefinition) {
           auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
           events.push({ type: 'ad-slot-unlocked', slotId: auxiliarySlot.id, color: auxiliarySlot.color });
           collectMatchingBottles(events);
-        } else {
+        } else if (resolved.reward === 'undo') {
           undoCredits = 1;
           events.push({ type: 'undo-credit-granted' });
+        } else {
+          shuffleCredits = 1;
+          events.push({ type: 'shuffle-credit-granted' });
         }
       }
       return { accepted: true, events };
     }
     if (pendingAd) return { accepted: false, reason: 'ad-request-pending', events: [] };
+    if (action.type === 'request-shuffle') {
+      if (phase === 'won') return { accepted: false, reason: 'level-complete', events: [] };
+      if (shuffleCredits) return { accepted: false, reason: 'shuffle-credit-available', events: [] };
+      if (!eligibleShuffleBottles().length) return { accepted: false, reason: 'no-shuffle-candidate', events: [] };
+      pendingAd = { reward: 'shuffle', targetId: 'shuffle', levelId, sessionId, requestId: crypto.randomUUID() };
+      return { accepted: true, events: [{ type: 'ad-requested', request: structuredClone(pendingAd) }] };
+    }
+    if (action.type === 'shuffle') {
+      if (phase === 'won') return { accepted: false, reason: 'level-complete', events: [] };
+      return useShuffle(action.nodeBudget ?? 800);
+    }
     if (action.type === 'request-undo') {
       if (!history.length) return { accepted: false, reason: 'no-undo-history', events: [] };
       if (undoCredits) return { accepted: false, reason: 'undo-credit-available', events: [] };

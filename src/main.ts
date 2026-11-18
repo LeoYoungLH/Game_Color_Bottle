@@ -29,6 +29,11 @@ const reasons: Record<RejectionReason, string> = {
   'no-undo-history': '还没有可以撤回的倒水。',
   'no-undo-credit': '需要先看模拟广告取得一次撤回机会。',
   'undo-credit-available': '已有一次撤回机会，可以直接使用。',
+  'no-shuffle-candidate': '当前没有可打乱的未满混色瓶，机会不会消耗。',
+  'no-shuffle-credit': '需要先看模拟广告取得一次打乱机会。',
+  'shuffle-credit-available': '已有一次打乱机会，可以直接使用。',
+  'shuffle-unverified': '未找到可通关的有效重排，打乱机会已保留。',
+  'shuffle-unknown': '搜索预算不足，暂不能确认重排可解；打乱机会已保留。',
 };
 
 let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = null;
@@ -67,19 +72,24 @@ function nextLevelAfter(level: AuthoredLevel): AuthoredLevel | null {
 function resultMessage(result: ActionResult): string {
   if (!result.accepted) return reasons[result.reason];
   const requested = result.events.find(event => event.type === 'ad-requested');
-  if (requested) return requested.request.reward === 'undo' ? '正在模拟获取一次撤回机会。' : `正在模拟解锁 ${requested.request.reward === 'fourth-slot' ? '辅助收集槽' : requested.request.targetId}。`;
+  if (requested) return requested.request.reward === 'undo' ? '正在模拟获取一次撤回机会。'
+    : requested.request.reward === 'shuffle' ? '正在模拟获取一次打乱机会。'
+      : `正在模拟解锁 ${requested.request.reward === 'fourth-slot' ? '辅助收集槽' : requested.request.targetId}。`;
   const adResult = result.events.find(event => event.type === 'ad-result');
   if (adResult) {
     if (adResult.outcome === 'success') {
       if (adResult.reward === 'undo') return '已获得一次撤回机会，点击撤回才会使用。';
+      if (adResult.reward === 'shuffle') return '已获得一次打乱机会，点击打乱才会使用。';
       const receipts = result.events.filter(event => event.type === 'collected');
       const target = adResult.reward === 'fourth-slot' ? '辅助收集槽' : `广告空瓶 ${adResult.targetId}`;
       return `${target}已解锁。${receipts.length ? `已收取${receipts.map(event => colorName(event.color)).join('、')}。` : ''}`;
     }
     const message = { cancelled: '模拟广告已提前关闭', failed: '模拟广告加载失败', unavailable: '当前没有可用的模拟广告' }[adResult.outcome];
-    return `${message}，${adResult.reward === 'undo' ? '撤回机会与局面' : adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
+    return `${message}，${adResult.reward === 'undo' ? '撤回机会与局面' : adResult.reward === 'shuffle' ? '打乱机会与局面' : adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
   }
   if (result.events.some(event => event.type === 'undone')) return '已撤回上一次倒水及其连锁结果。';
+  const shuffled = result.events.find(event => event.type === 'shuffled');
+  if (shuffled) return `已打乱 ${shuffled.bottleIds.join('、')} 的瓶内颜色；已验证仍有通关路线。`;
   const receipts = result.events.filter(event => event.type === 'collected');
   if (result.events.some(event => event.type === 'won')) return '所有颜色已经收取，这一关完成了。';
   const released = result.events.filter(event => event.type === 'released');
@@ -160,6 +170,7 @@ app.addEventListener('click', event => {
   }
   switch (button.dataset.action) {
     case 'undo': dispatch({ type: current?.session.getSnapshot().undoCredits ? 'undo' : 'request-undo' }); break;
+    case 'shuffle': dispatch({ type: current?.session.getSnapshot().shuffleCredits ? 'shuffle' : 'request-shuffle' }); break;
     case 'hint': {
       if (!current) break;
       const moveCount = current.session.getSnapshot().moveCount;
