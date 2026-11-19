@@ -97,6 +97,7 @@ export type PlayerAction =
   | { readonly type: 'undo' }
   | { readonly type: 'request-shuffle' }
   | { readonly type: 'shuffle'; readonly nodeBudget?: number }
+  | { readonly type: 'restart' }
   | { readonly type: 'resolve-ad'; readonly request: Readonly<Record<keyof AdRewardRequest, string>>; readonly outcome: AdOutcome };
 export type RejectionReason = 'unknown-bottle' | 'empty-source' | 'same-bottle' | 'locked-bottle' | 'sealed-bottle' | 'receive-only-source' | 'full-target' | 'different-color' | 'completed-source' | 'collected-bottle' | 'level-complete' | 'not-ad-bottle' | 'ad-already-unlocked' | 'ad-request-pending' | 'stale-ad-result' | 'no-pending-target' | 'slot-already-unlocked' | 'no-undo-history' | 'no-undo-credit' | 'undo-credit-available' | 'no-shuffle-candidate' | 'no-shuffle-credit' | 'shuffle-credit-available' | 'shuffle-unverified' | 'shuffle-unknown';
 export type GameEvent =
@@ -112,6 +113,7 @@ export type GameEvent =
   | { readonly type: 'undone' }
   | { readonly type: 'shuffle-credit-granted' }
   | { readonly type: 'shuffled'; readonly bottleIds: readonly string[] }
+  | { readonly type: 'restarted'; readonly levelId: string }
   | ({ readonly type: 'collected' } & CollectionReceipt)
   | { readonly type: 'won'; readonly levelId: string }
   | { readonly type: 'selection-changed'; readonly bottleId: string | null }
@@ -143,6 +145,117 @@ export interface SessionRecoveryState {
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
 }
 
+export interface SessionBenefits {
+  readonly undoCredits: number;
+  readonly shuffleCredits: number;
+  readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validCredit(value: unknown): boolean {
+  return value === 0 || value === 1;
+}
+
+function validateRecovery(level: LevelDefinition, input: unknown): SessionRecoveryState {
+  const invalid = (): never => { throw new Error('Invalid saved session.'); };
+  if (!record(input)) return invalid();
+  if (input.version !== 1) throw new Error('Incompatible saved session version.');
+  if (input.levelId !== level.id || typeof input.sessionId !== 'string' || !input.sessionId
+    || !validCredit(input.undoCredits) || !validCredit(input.shuffleCredits)
+    || !record(input.feedback) || typeof input.feedback.sound !== 'boolean' || typeof input.feedback.vibration !== 'boolean'
+    || !Array.isArray(input.history) || input.history.length > 10000 || !record(input.rules)) return invalid();
+
+  const expectedBottles = [...level.bottles, ...AD_BOTTLE_IDS.map(id => ({ id, layers: [] as string[] }))];
+  const supply = new Map<string, number>();
+  const demand = new Map<string, number>();
+  for (const bottle of level.bottles) for (const color of bottle.layers) supply.set(color, (supply.get(color) ?? 0) + 1);
+  for (const color of [...level.targets, ...(level.upcomingTargets ?? [])]) demand.set(color, (demand.get(color) ?? 0) + 1);
+  const upcoming = level.upcomingTargets ?? [];
+
+  function validRules(value: unknown): value is RuleCheckpoint {
+    if (!record(value) || !Array.isArray(value.bottles) || value.bottles.length !== expectedBottles.length
+      || !Array.isArray(value.targets) || value.targets.length !== 3 || !Array.isArray(value.collected)
+      || !record(value.auxiliarySlot) || !Number.isSafeInteger(value.moveCount) || (value.moveCount as number) < 0
+      || !Number.isSafeInteger(value.nextTargetIndex) || (value.nextTargetIndex as number) < 0
+      || (value.nextTargetIndex as number) > upcoming.length || !['playing', 'won'].includes(value.phase as string)) return false;
+    const remaining = new Map<string, number>();
+    const bottlesById = new Map<string, Record<string, unknown>>();
+    for (const [index, candidate] of value.bottles.entries()) {
+      const authored = expectedBottles[index]!;
+      if (!record(candidate) || candidate.id !== authored.id || !Array.isArray(candidate.layers)
+        || candidate.layers.length > BOTTLE_CAPACITY
+        || !['available', 'ready', 'collected', 'ad-locked', 'sealed', 'receive-only'].includes(candidate.status as string)
+        || candidate.sealThreshold !== ('sealThreshold' in authored ? authored.sealThreshold : undefined)
+        || candidate.receiveOnly !== ('receiveOnly' in authored && authored.receiveOnly ? true : undefined)) return false;
+      const isAd = isAdBottleId(authored.id);
+      if ((candidate.status === 'ad-locked' && (!isAd || candidate.layers.length !== 0))
+        || (candidate.status === 'sealed' && !('sealThreshold' in authored))
+        || (candidate.status === 'receive-only' && !('receiveOnly' in authored && authored.receiveOnly))
+        || (candidate.status === 'collected' && candidate.layers.length !== 0)) return false;
+      if (candidate.status === 'sealed' && (candidate.layers.length !== authored.layers.length
+        || candidate.layers.some((layer, position) => !record(layer) || layer.color !== authored.layers[position]
+          || layer.revealed !== !('hiddenLayers' in authored && authored.hiddenLayers?.includes(position))))) return false;
+      if (candidate.status === 'ready' && (candidate.layers.length !== BOTTLE_CAPACITY
+        || candidate.layers.some(layer => !record(layer) || layer.color !== (candidate.layers as Record<string, unknown>[])[0]?.color))) return false;
+      if (candidate.status === 'receive-only' && (candidate.layers.length < authored.layers.length
+        || candidate.layers.length >= BOTTLE_CAPACITY || candidate.layers.some(layer => !record(layer)
+          || layer.color !== authored.layers[0] || layer.revealed !== true))) return false;
+      for (const layer of candidate.layers) {
+        if (!record(layer) || typeof layer.color !== 'string' || !supply.has(layer.color) || typeof layer.revealed !== 'boolean') return false;
+        remaining.set(layer.color, (remaining.get(layer.color) ?? 0) + 1);
+      }
+      bottlesById.set(authored.id, candidate);
+    }
+    const delivered = new Set<string>();
+    const assigned = new Map<string, number>();
+    for (const receipt of value.collected) {
+      if (!record(receipt) || typeof receipt.bottleId !== 'string' || delivered.has(receipt.bottleId)
+        || bottlesById.get(receipt.bottleId)?.status !== 'collected' || !supply.has(receipt.color as string)
+        || receipt.units !== BOTTLE_CAPACITY || !['slot-1', 'slot-2', 'slot-3', 'slot-4'].includes(receipt.slotId as string)) return false;
+      delivered.add(receipt.bottleId);
+      remaining.set(receipt.color as string, (remaining.get(receipt.color as string) ?? 0) + BOTTLE_CAPACITY);
+      assigned.set(receipt.color as string, (assigned.get(receipt.color as string) ?? 0) + 1);
+    }
+    if ([...bottlesById.values()].filter(b => b.status === 'collected').length !== delivered.size) return false;
+    if ([...supply].some(([color, count]) => remaining.get(color) !== count)) return false;
+    for (const [index, target] of value.targets.entries()) {
+      if (!record(target) || target.id !== `slot-${index + 1}` || (target.color !== null && !demand.has(target.color as string))
+        || target.fulfilled !== (target.color === null)) return false;
+      if (target.color !== null) assigned.set(target.color as string, (assigned.get(target.color as string) ?? 0) + 1);
+    }
+    const aux = value.auxiliarySlot;
+    if (aux.id !== 'slot-4' || typeof aux.unlocked !== 'boolean'
+      || (aux.unlocked ? ((aux.color !== null && !demand.has(aux.color as string)) || aux.fulfilled !== (aux.color === null))
+        : aux.color !== null || aux.fulfilled !== false)) return false;
+    if (aux.unlocked && aux.color !== null) assigned.set(aux.color as string, (assigned.get(aux.color as string) ?? 0) + 1);
+    for (const color of upcoming.slice(value.nextTargetIndex as number)) assigned.set(color, (assigned.get(color) ?? 0) + 1);
+    if ([...demand].some(([color, count]) => assigned.get(color) !== count)) return false;
+    const complete = value.collected.length === [...supply.values()].reduce((sum, n) => sum + n, 0) / BOTTLE_CAPACITY
+      && value.bottles.every(b => (b as Record<string, unknown>).layers instanceof Array && ((b as Record<string, unknown>).layers as unknown[]).length === 0)
+      && value.targets.every(t => (t as Record<string, unknown>).fulfilled === true)
+      && (!aux.unlocked || aux.fulfilled === true);
+    return (value.phase === 'won') === complete;
+  }
+
+  if (!validRules(input.rules) || input.history.some(checkpoint => !validRules(checkpoint))) return invalid();
+  const current = input.rules as RuleCheckpoint;
+  const savedHistory = input.history as RuleCheckpoint[];
+  if (savedHistory.length > current.moveCount
+    || savedHistory.some((checkpoint, index) => checkpoint.moveCount !== current.moveCount - savedHistory.length + index)
+    || (input.selectedBottleId !== null && (typeof input.selectedBottleId !== 'string'
+      || !current.bottles.some(b => b.id === input.selectedBottleId && b.status === 'available' && b.layers.length > 0)))) return invalid();
+  if (input.pendingAd !== null) {
+    const pending = input.pendingAd;
+    if (!record(pending) || !['empty-bottle', 'fourth-slot', 'undo', 'shuffle'].includes(pending.reward as string)
+      || typeof pending.targetId !== 'string' || pending.levelId !== level.id || pending.sessionId !== input.sessionId
+      || typeof pending.requestId !== 'string' || !pending.requestId) return invalid();
+  }
+  return input as unknown as SessionRecoveryState;
+}
+
 export type PourStep = readonly [from: string, to: string];
 export type SolutionResult =
   | { readonly status: 'solved'; readonly moves: readonly PourStep[]; readonly explored: number }
@@ -150,6 +263,11 @@ export type SolutionResult =
 export type HintResult =
   | { readonly status: 'step'; readonly from: string; readonly to: string; readonly color: string; readonly basis: 'verified-route' | 'legal-only'; readonly reason: 'empty-target' | 'matching-top' }
   | { readonly status: 'unavailable'; readonly reason: 'complete' | 'ad-pending' | 'budget-exhausted' | 'unsolvable' };
+export interface StuckOptions {
+  readonly stuck: boolean;
+  readonly canUndo: boolean;
+  readonly lockedAdBottles: readonly string[];
+}
 export interface ReorderCandidate {
   readonly bottleId: string;
   readonly layers: readonly Readonly<LayerState>[];
@@ -202,9 +320,10 @@ function validateLevel(level: LevelDefinition): void {
   }
 }
 
-export function createGameSession(level: LevelDefinition) {
+export function createGameSession(level: LevelDefinition, options: { readonly recovered?: unknown; readonly benefits?: SessionBenefits } = {}) {
   validateLevel(level);
-  const sessionId = crypto.randomUUID();
+  if (options.recovered !== undefined && options.benefits !== undefined) throw new Error('Cannot restore and inherit benefits at once.');
+  let sessionId = crypto.randomUUID();
   const levelId = level.id;
   const requiredCollections = level.bottles.reduce((count, b) => count + b.layers.length, 0) / BOTTLE_CAPACITY;
   const bottles: { id: string; layers: LayerState[]; status: BottleStatus; sealThreshold?: number; receiveOnly?: boolean }[] = [
@@ -225,6 +344,7 @@ export function createGameSession(level: LevelDefinition) {
   let undoCredits = 0;
   let shuffleCredits = 0;
   const history: RuleCheckpoint[] = [];
+  let initialRules: RuleCheckpoint;
 
   function captureRules(): RuleCheckpoint {
     return structuredClone({ bottles, targets, auxiliarySlot, nextTargetIndex, collected, moveCount, phase });
@@ -471,6 +591,28 @@ export function createGameSession(level: LevelDefinition) {
       reason: target.layers.length ? 'matching-top' : 'empty-target' };
   }
 
+  function getStuckOptions(): StuckOptions {
+    const lockedAdBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status === 'ad-locked');
+    const canUndo = history.length > 0;
+    if (phase === 'won' || pendingAd) return { stuck: false, canUndo, lockedAdBottles };
+    const start = captureRules();
+    const originalHistoryLength = history.length;
+    const originalSelection = selectedBottleId;
+    try {
+      for (const source of bottles) {
+        if (source.status !== 'available' || !source.layers.length) continue;
+        for (const target of bottles) {
+          if (target === source || !['available', 'receive-only'].includes(target.status)) continue;
+          const result = dispatch({ type: 'pour', from: source.id, to: target.id });
+          if (result.accepted) return { stuck: false, canUndo, lockedAdBottles };
+        }
+      }
+      return { stuck: true, canUndo, lockedAdBottles };
+    } finally {
+      restoreInspection(start, originalHistoryLength, originalSelection);
+    }
+  }
+
   function collectMatchingBottles(events: GameEvent[]): void {
     // Rescan in bottle order after each refill so a waiting full bottle can chain immediately.
     let matched: boolean;
@@ -537,6 +679,23 @@ export function createGameSession(level: LevelDefinition) {
           shuffleCredits = 1;
           events.push({ type: 'shuffle-credit-granted' });
         }
+      }
+      return { accepted: true, events };
+    }
+    if (action.type === 'restart') {
+      const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
+      const fourthUnlocked = auxiliarySlot.unlocked;
+      applyRules(initialRules);
+      history.length = 0;
+      selectedBottleId = null;
+      pendingAd = null;
+      sessionId = crypto.randomUUID();
+      for (const id of unlockedBottles) bottles.find(b => b.id === id)!.status = 'available';
+      const events: GameEvent[] = [{ type: 'restarted', levelId }];
+      if (fourthUnlocked) {
+        auxiliarySlot.unlocked = true;
+        auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
+        collectMatchingBottles(events);
       }
       return { accepted: true, events };
     }
@@ -638,5 +797,30 @@ export function createGameSession(level: LevelDefinition) {
   }
 
   collectMatchingBottles([]);
-  return { getSnapshot, getRecoveryState, dispatch, findSolution, checkReorderCandidate, getHint };
+  initialRules = captureRules();
+  if (options.recovered !== undefined) {
+    const saved = validateRecovery(level, options.recovered);
+    applyRules(saved.rules);
+    history.push(...structuredClone(saved.history));
+    undoCredits = saved.undoCredits;
+    shuffleCredits = saved.shuffleCredits;
+    selectedBottleId = saved.selectedBottleId;
+    feedback.sound = saved.feedback.sound;
+    feedback.vibration = saved.feedback.vibration;
+  } else if (options.benefits !== undefined) {
+    const benefits = options.benefits;
+    if (!validCredit(benefits.undoCredits) || !validCredit(benefits.shuffleCredits)
+      || typeof benefits.feedback?.sound !== 'boolean' || typeof benefits.feedback.vibration !== 'boolean') {
+      throw new Error('Invalid carried benefits.');
+    }
+    undoCredits = benefits.undoCredits;
+    shuffleCredits = benefits.shuffleCredits;
+    feedback.sound = benefits.feedback.sound;
+    feedback.vibration = benefits.feedback.vibration;
+  }
+  return { getSnapshot, getRecoveryState, dispatch, findSolution, checkReorderCandidate, getHint, getStuckOptions };
+}
+
+export function restoreGameSession(level: LevelDefinition, saved: unknown) {
+  return createGameSession(level, { recovered: saved });
 }

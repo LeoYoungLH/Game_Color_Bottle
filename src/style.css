@@ -115,6 +115,10 @@ svg { width: 18px; height: 18px; stroke-width: 2; }
 .ad-lock svg { width: min(24px, 75%); height: 24px; }
 .collected-mark { display: grid; place-items: center; width: min(56px, calc(100% - 2px)); height: clamp(84px, 24vw, 116px); margin: auto; border: 1px dashed #697b6d; border-radius: 10px; color: var(--teal); font-size: 21px; }
 .notice { min-height: 39px; display: flex; align-items: center; padding: 8px 0; color: #e1d4aa; font-size: 11px; line-height: 1.5; }
+.storage-warning { margin: 9px 0 14px; padding: 8px 10px; border-left: 2px solid #df927b; background: #3b302d; color: #f3d1c4; font-size: 11px; line-height: 1.5; }
+.stuck-options { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 11px; padding: 9px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.stuck-options button { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 4px 2px; background: transparent; color: var(--accent); font-size: 11px; }
+.stuck-options svg { width: 14px; height: 14px; }
 .bench-actions { display: flex; justify-content: space-between; border-top: 1px solid #3a433f; padding-top: 10px; }
 .bench-secondary { display: flex; gap: 4px; }
 .tool-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 0; background: transparent; color: #d4dfd4; font-size: 12px; }

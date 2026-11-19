@@ -3,6 +3,7 @@ import { hydrateIcons } from './icons.ts';
 import { createGameSession, isAdOutcome, type ActionResult, type PlayerAction, type RejectionReason } from './game-session.ts';
 import { BASIC_LEVELS, type AuthoredLevel } from './levels.ts';
 import { colorName, renderGame, renderHome } from './view.ts';
+import { createGameStore } from './save-store.ts';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Application root is missing.');
@@ -36,7 +37,16 @@ const reasons: Record<RejectionReason, string> = {
   'shuffle-unknown': '搜索预算不足，暂不能确认重排可解；打乱机会已保留。',
 };
 
-let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = null;
+const store = createGameStore({
+  getItem: key => window.localStorage.getItem(key),
+  setItem: (key, value) => window.localStorage.setItem(key, value),
+}, BASIC_LEVELS);
+const loaded = store.load();
+let current: { level: AuthoredLevel; session: ReturnType<typeof createGameSession> } | null = loaded.status === 'restored'
+  ? { level: loaded.level, session: loaded.session } : null;
+const completedLevels = new Set(loaded.status === 'restored' ? loaded.completedLevelIds : []);
+let recoveryProblem: 'corrupt' | 'incompatible' | null = loaded.status === 'corrupt' || loaded.status === 'incompatible' ? loaded.status : null;
+let storageWarning = loaded.status === 'unavailable' ? '浏览器存储不可用；本次游玩只在当前页面保留。' : '';
 let screen: 'home' | 'game' = 'home';
 let notice = '';
 let confirmRestart = false;
@@ -88,6 +98,7 @@ function resultMessage(result: ActionResult): string {
     return `${message}，${adResult.reward === 'undo' ? '撤回机会与局面' : adResult.reward === 'shuffle' ? '打乱机会与局面' : adResult.reward === 'fourth-slot' ? '收集槽' : '瓶位'}未改变。`;
   }
   if (result.events.some(event => event.type === 'undone')) return '已撤回上一次倒水及其连锁结果。';
+  if (result.events.some(event => event.type === 'restarted')) return '本关已重开，已获得的帮助和未用机会保留。';
   const shuffled = result.events.find(event => event.type === 'shuffled');
   if (shuffled) return `已打乱 ${shuffled.bottleIds.join('、')} 的瓶内颜色；已验证仍有通关路线。`;
   const receipts = result.events.filter(event => event.type === 'collected');
@@ -109,10 +120,12 @@ function render(): void {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
   if (screen === 'home') {
     const active = current?.session.getSnapshot();
-    app.innerHTML = renderHome(active?.phase === 'playing' && current ? { title: current.level.definition.title, moves: active.moveCount } : null);
+    app.innerHTML = renderHome(active && current ? { title: current.level.definition.title, moves: active.moveCount, won: active.phase === 'won' } : null,
+      completedLevels, storageWarning, recoveryProblem);
   } else if (current) {
     const nextLevel = nextLevelAfter(current.level);
-    app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel);
+    app.innerHTML = renderGame(current.level, current.session.getSnapshot(), notice, confirmRestart, nextLevel,
+      storageWarning, current.session.getStuckOptions());
   }
   hydrateIcons(app);
   const dialog = app.querySelector<HTMLDialogElement>('.ad-dialog') ?? app.querySelector<HTMLDialogElement>('dialog');
@@ -120,11 +133,22 @@ function render(): void {
   else if (focused) app.querySelector<HTMLButtonElement>(`[data-focus-key="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
 }
 
+function saveCurrent(): void {
+  if (!current) return;
+  storageWarning = store.save(current.level, current.session, [...completedLevels]).status === 'saved'
+    ? '' : '浏览器存储不可用；本次游玩只在当前页面保留。';
+}
+
 function start(level: AuthoredLevel): void {
-  current = { level, session: createGameSession(level.definition) };
+  const previous = current?.session.getSnapshot();
+  current = { level, session: createGameSession(level.definition, previous ? { benefits: {
+    undoCredits: previous.undoCredits, shuffleCredits: previous.shuffleCredits, feedback: previous.feedback,
+  } } : {}) };
   screen = 'game';
   confirmRestart = false;
+  recoveryProblem = null;
   notice = level.lesson;
+  saveCurrent();
   render();
   window.scrollTo({ top: 0 });
 }
@@ -134,6 +158,10 @@ function dispatch(action: PlayerAction): void {
   const result = current.session.dispatch(action);
   notice = resultMessage(result);
   playFeedback(result);
+  if (result.accepted) {
+    if (result.events.some(event => event.type === 'won')) completedLevels.add(current.level.definition.id);
+    saveCurrent();
+  }
   render();
 }
 
@@ -165,6 +193,7 @@ app.addEventListener('click', event => {
     const enabled = !current?.session.getSnapshot().feedback[kind];
     current?.session.dispatch({ type: 'set-feedback', kind, enabled });
     notice = `${kind === 'sound' ? '声音' : '震动'}已${enabled ? '开启' : '关闭'}。`;
+    saveCurrent();
     render();
     return;
   }
@@ -193,8 +222,9 @@ app.addEventListener('click', event => {
       break;
     }
     case 'request-fourth-slot': dispatch({ type: 'request-fourth-slot' }); break;
-    case 'home': screen = 'home'; confirmRestart = false; render(); window.scrollTo({ top: 0 }); break;
+    case 'home': screen = 'home'; confirmRestart = false; saveCurrent(); render(); window.scrollTo({ top: 0 }); break;
     case 'continue': if (current) { screen = 'game'; render(); } break;
+    case 'discard-save': start(BASIC_LEVELS[0]!); break;
     case 'next': {
       if (!current || current.session.getSnapshot().phase !== 'won') break;
       const next = nextLevelAfter(current.level);
@@ -203,6 +233,7 @@ app.addEventListener('click', event => {
     }
     case 'cancel': dispatch({ type: 'cancel-selection' }); break;
     case 'restart': confirmRestart = true; render(); break;
+    case 'confirm-restart': confirmRestart = false; dispatch({ type: 'restart' }); break;
     case 'replay': if (current) start(current.level); break;
     case 'keep-playing': confirmRestart = false; render(); break;
   }
@@ -215,4 +246,5 @@ app.addEventListener('cancel', event => {
   if (confirmRestart) { confirmRestart = false; render(); }
 }, true);
 
+if (loaded.status === 'restored') saveCurrent();
 render();

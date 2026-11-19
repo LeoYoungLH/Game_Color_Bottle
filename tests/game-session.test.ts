@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGameSession } from '../src/game-session.ts';
+import { createGameSession, restoreGameSession } from '../src/game-session.ts';
 
 const opening = {
   id: 'opening',
@@ -1449,4 +1449,156 @@ test('a verified candidate can reorder more than one eligible bottle without cro
     assert.deepEqual(after.bottles.find(b => b.id === id), before.bottles.find(b => b.id === id));
   }
   assert.equal(after.collected.length, 0);
+});
+
+test('restart restores fixed input but keeps earned slots, bottles and unused credits', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S05')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'request-fourth-slot' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'pour', from: 'B', to: 'A' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const previousSessionId = session.getSnapshot().sessionId;
+  const result = session.dispatch({ type: 'restart' });
+  assert.equal(result.accepted, true);
+  const restarted = session.getSnapshot();
+  assert.notEqual(restarted.sessionId, previousSessionId);
+  assert.equal(restarted.moveCount, 0);
+  assert.equal(restarted.canUndo, false);
+  assert.equal(restarted.undoCredits, 1);
+  assert.equal(restarted.auxiliarySlot.unlocked, true);
+  assert.equal(restarted.bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  assert.equal(restarted.bottles.find(b => b.id === 'ad-2')?.status, 'ad-locked');
+  assert.deepEqual(restarted.collected.map(receipt => receipt.bottleId), ['E', 'F']);
+  assert.equal(restarted.phase, 'playing');
+  assert.deepEqual(session.dispatch({ type: 'undo' }), { accepted: false, reason: 'no-undo-history', events: [] });
+});
+
+test('a saved session restores visible play, hidden truth, settings and undo history under a new request generation', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S06')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'set-feedback', kind: 'sound', enabled: true });
+  const before = session.getSnapshot();
+  const saved = session.getRecoveryState();
+  const restored = restoreGameSession(level, structuredClone(saved));
+  const after = restored.getSnapshot();
+  assert.notEqual(after.sessionId, before.sessionId);
+  assert.deepEqual({ ...after, sessionId: before.sessionId }, before);
+  assert.equal(after.pendingAd, null);
+  assert.equal(restored.dispatch({ type: 'undo' }).accepted, true);
+  assert.deepEqual(restored.getSnapshot().bottles.find(b => b.id === 'A')?.layers, ['moss', null, 'coral', 'coral']);
+  assert.equal(restored.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  assert.equal(restored.getSnapshot().undoCredits, 0);
+  assert.equal(restored.getSnapshot().feedback.sound, true);
+});
+
+test('corrupt recovery is rejected without changing play, and pending ad results expire on restore or restart', () => {
+  const session = createGameSession(opening);
+  session.dispatch({ type: 'pour', from: 'A', to: 'D' });
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  const request = session.getSnapshot().pendingAd!;
+  const saved = session.getRecoveryState();
+  const before = session.getSnapshot();
+  for (const altered of [
+    { ...saved, version: 999 },
+    { ...saved, rules: { ...saved.rules, bottles: saved.rules.bottles.map((b, i) => i === 0 ? { ...b, layers: [{ color: 'invented', revealed: true }] } : b) } },
+    { ...saved, rules: { ...saved.rules, targets: [{ id: 'slot-1', color: 'invented', fulfilled: false }, ...saved.rules.targets.slice(1)] } },
+    { ...saved, undoCredits: 2 },
+  ]) assert.throws(() => restoreGameSession(opening, altered));
+  assert.deepEqual(session.getSnapshot(), before);
+  const restored = restoreGameSession(opening, saved);
+  assert.equal(restored.getSnapshot().pendingAd, null);
+  assert.notEqual(restored.getSnapshot().sessionId, request.sessionId);
+  assert.deepEqual(restored.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+  assert.equal(restored.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'ad-locked');
+  session.dispatch({ type: 'restart' });
+  assert.deepEqual(session.dispatch({ type: 'resolve-ad', request, outcome: 'success' }), { accepted: false, reason: 'stale-ad-result', events: [] });
+});
+
+test('a new level inherits unused tool chances and settings but starts with locked ad rights', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const first = createGameSession(BASIC_LEVELS.find(level => level.definition.id === 'S03')!.definition);
+  first.dispatch({ type: 'request-shuffle' });
+  first.dispatch({ type: 'resolve-ad', request: first.getSnapshot().pendingAd!, outcome: 'success' });
+  first.dispatch({ type: 'set-feedback', kind: 'vibration', enabled: true });
+  const previous = first.getSnapshot();
+  const next = createGameSession(BASIC_LEVELS[0]!.definition, { benefits: {
+    undoCredits: previous.undoCredits, shuffleCredits: previous.shuffleCredits, feedback: previous.feedback,
+  } });
+  const snapshot = next.getSnapshot();
+  assert.equal(snapshot.shuffleCredits, 1);
+  assert.equal(snapshot.undoCredits, 0);
+  assert.equal(snapshot.feedback.vibration, true);
+  assert.notEqual(snapshot.sessionId, previous.sessionId);
+  assert.equal(snapshot.auxiliarySlot.unlocked, false);
+  assert.deepEqual(snapshot.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+});
+
+test('no legal pour reports applicable recovery actions without claiming a permanent loss', () => {
+  const session = createGameSession(blockedLevel);
+  const before = session.getRecoveryState();
+  assert.deepEqual(session.getStuckOptions(), { stuck: true, canUndo: false, lockedAdBottles: ['ad-1', 'ad-2'] });
+  assert.deepEqual(session.getRecoveryState(), before);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.deepEqual(session.getStuckOptions(), { stuck: false, canUndo: false, lockedAdBottles: ['ad-2'] });
+});
+
+test('restored sealed, receive-only and auxiliary states continue their authored winning routes', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  for (const [id, prefix] of [['S08', 2], ['S10', 1], ['S05', 0]] as const) {
+    const authored = BASIC_LEVELS.find(level => level.definition.id === id)!;
+    const session = createGameSession(authored.definition);
+    if (id === 'S05') {
+      session.dispatch({ type: 'request-fourth-slot' });
+      session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+      assert.equal(session.getSnapshot().collected.length, 2);
+    }
+    for (const [from, to] of authored.solution.slice(0, prefix)) session.dispatch({ type: 'pour', from, to });
+    const before = session.getSnapshot();
+    const restored = restoreGameSession(authored.definition, session.getRecoveryState());
+    assert.deepEqual({ ...restored.getSnapshot(), sessionId: before.sessionId }, before, id);
+    for (const [from, to] of authored.solution.slice(prefix)) {
+      assert.equal(restored.dispatch({ type: 'pour', from, to }).accepted, true, id);
+    }
+    assert.equal(restored.getSnapshot().phase, 'won', id);
+  }
+});
+
+test('a consumed shuffle chance cannot reappear after restoring its new history boundary', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S03')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'shuffle' });
+  const restored = restoreGameSession(level, session.getRecoveryState());
+  assert.equal(restored.getSnapshot().shuffleCredits, 0);
+  assert.equal(restored.getSnapshot().canUndo, false);
+  assert.deepEqual(restored.getSnapshot().bottles.find(b => b.id === 'B')?.layers, ['coral', 'moss', 'moss']);
+  assert.deepEqual(restored.dispatch({ type: 'shuffle' }), { accepted: false, reason: 'no-shuffle-credit', events: [] });
+});
+
+test('restore rejects impossible sealed or receive-only contents even when color totals are preserved', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  for (const [id, protectedId] of [['S08', 'I'], ['S10', 'I']] as const) {
+    const level = BASIC_LEVELS.find(candidate => candidate.definition.id === id)!.definition;
+    const saved = createGameSession(level).getRecoveryState();
+    const altered = structuredClone(saved);
+    const protectedBottle = altered.rules.bottles.find(b => b.id === protectedId)!;
+    const donor = altered.rules.bottles.find(b => b.id === 'A')!;
+    protectedBottle.layers[0]!.color = 'coral';
+    donor.layers[2]!.color = 'honey';
+    assert.throws(() => restoreGameSession(level, altered), /Invalid saved session/, id);
+  }
 });
