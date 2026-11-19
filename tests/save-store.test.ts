@@ -38,6 +38,10 @@ test('invalid, incompatible and unavailable storage return distinct safe outcome
   store.save(level, session, []);
   const changedCatalog = [{ ...level, version: 2 as const }, ...BASIC_LEVELS.slice(1)];
   assert.deepEqual(createGameStore(storage, changedCatalog).load(), { status: 'incompatible' });
+  const oldSession = createGameSession(level.definition).getRecoveryState();
+  Reflect.set(oldSession, 'version', 2);
+  store.save(level, { getRecoveryState: () => oldSession }, []);
+  assert.deepEqual(store.load(), { status: 'incompatible' });
   storage.value = storage.value!.replace('"moss"', '"invented"');
   assert.deepEqual(store.load(), { status: 'corrupt' });
   const unavailable = createGameStore({

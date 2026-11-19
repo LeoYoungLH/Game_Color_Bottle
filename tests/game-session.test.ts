@@ -1602,3 +1602,21 @@ test('restore rejects impossible sealed or receive-only contents even when color
     assert.throws(() => restoreGameSession(level, altered), /Invalid saved session/, id);
   }
 });
+
+test('restore rejects a forged delivery slot and rights released before their gate', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const chained = BASIC_LEVELS.find(level => level.definition.id === 'S05')!.definition;
+  const session = createGameSession(chained);
+  session.dispatch({ type: 'request-fourth-slot' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  const wrongSlot = session.getRecoveryState();
+  Reflect.set(wrongSlot.rules.collected[0]!, 'slotId', 'slot-2');
+  assert.throws(() => restoreGameSession(chained, wrongSlot), /Invalid saved session/);
+
+  for (const id of ['S08', 'S10']) {
+    const level = BASIC_LEVELS.find(candidate => candidate.definition.id === id)!.definition;
+    const early = createGameSession(level).getRecoveryState();
+    early.rules.bottles.find(b => b.id === 'I')!.status = 'available';
+    assert.throws(() => restoreGameSession(level, early), /Invalid saved session/, id);
+  }
+});

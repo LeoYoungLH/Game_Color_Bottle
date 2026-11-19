@@ -1,4 +1,4 @@
-import { restoreGameSession, type LevelDefinition, type SessionRecoveryState } from './game-session.ts';
+import { IncompatibleRecoveryError, restoreGameSession, type LevelDefinition, type SessionRecoveryState } from './game-session.ts';
 
 export interface StorageAdapter {
   getItem(key: string): string | null;
@@ -68,8 +68,8 @@ export function createGameStore<T extends CatalogEntry>(storage: StorageAdapter,
         return { status: 'corrupt' as const };
       }
       return { status: 'restored' as const, level, session, completedLevelIds: payload.completedLevelIds as string[] };
-    } catch {
-      return { status: 'corrupt' as const };
+    } catch (error) {
+      return { status: error instanceof IncompatibleRecoveryError ? 'incompatible' as const : 'corrupt' as const };
     }
   }
 

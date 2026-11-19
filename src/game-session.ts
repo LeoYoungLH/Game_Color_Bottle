@@ -151,6 +151,10 @@ export interface SessionBenefits {
   readonly feedback: Readonly<Record<FeedbackKind, boolean>>;
 }
 
+export class IncompatibleRecoveryError extends Error {
+  constructor() { super('Incompatible saved session version.'); }
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -162,7 +166,7 @@ function validCredit(value: unknown): boolean {
 function validateRecovery(level: LevelDefinition, input: unknown): SessionRecoveryState {
   const invalid = (): never => { throw new Error('Invalid saved session.'); };
   if (!record(input)) return invalid();
-  if (input.version !== 1) throw new Error('Incompatible saved session version.');
+  if (input.version !== 1) throw new IncompatibleRecoveryError();
   if (input.levelId !== level.id || typeof input.sessionId !== 'string' || !input.sessionId
     || !validCredit(input.undoCredits) || !validCredit(input.shuffleCredits)
     || !record(input.feedback) || typeof input.feedback.sound !== 'boolean' || typeof input.feedback.vibration !== 'boolean'
@@ -174,6 +178,33 @@ function validateRecovery(level: LevelDefinition, input: unknown): SessionRecove
   for (const bottle of level.bottles) for (const color of bottle.layers) supply.set(color, (supply.get(color) ?? 0) + 1);
   for (const color of [...level.targets, ...(level.upcomingTargets ?? [])]) demand.set(color, (demand.get(color) ?? 0) + 1);
   const upcoming = level.upcomingTargets ?? [];
+
+  function targetScheduleMatches(rules: RuleCheckpoint): boolean {
+    const unlockPositions = rules.auxiliarySlot.unlocked
+      ? Array.from({ length: rules.collected.length + 1 }, (_, index) => index) : [-1];
+    return unlockPositions.some(unlockAt => {
+      const slots: (string | null)[] = [...level.targets];
+      let fourth: string | null | undefined;
+      let queueIndex = 0;
+      for (let index = 0; index <= rules.collected.length; index++) {
+        if (index === unlockAt) {
+          if (queueIndex >= upcoming.length) return false;
+          fourth = upcoming[queueIndex++]!;
+        }
+        if (index === rules.collected.length) break;
+        const receipt = rules.collected[index]!;
+        const active = [...slots, ...(fourth === undefined ? [] : [fourth])];
+        const firstMatch = active.findIndex(color => color === receipt.color);
+        if (firstMatch < 0 || receipt.slotId !== `slot-${firstMatch + 1}`) return false;
+        const replacement = queueIndex < upcoming.length ? upcoming[queueIndex++]! : null;
+        if (firstMatch === 3) fourth = replacement;
+        else slots[firstMatch] = replacement;
+      }
+      return queueIndex === rules.nextTargetIndex
+        && slots.every((color, index) => color === rules.targets[index]?.color)
+        && (rules.auxiliarySlot.unlocked ? fourth === rules.auxiliarySlot.color : fourth === undefined);
+    });
+  }
 
   function validRules(value: unknown): value is RuleCheckpoint {
     if (!record(value) || !Array.isArray(value.bottles) || value.bottles.length !== expectedBottles.length
@@ -198,6 +229,9 @@ function validateRecovery(level: LevelDefinition, input: unknown): SessionRecove
       if (candidate.status === 'sealed' && (candidate.layers.length !== authored.layers.length
         || candidate.layers.some((layer, position) => !record(layer) || layer.color !== authored.layers[position]
           || layer.revealed !== !('hiddenLayers' in authored && authored.hiddenLayers?.includes(position))))) return false;
+      if ('sealThreshold' in authored && authored.sealThreshold !== undefined
+        && (candidate.status === 'sealed') !== (value.collected.length < authored.sealThreshold)) return false;
+      if ('receiveOnly' in authored && authored.receiveOnly && !['receive-only', 'ready', 'collected'].includes(candidate.status as string)) return false;
       if (candidate.status === 'ready' && (candidate.layers.length !== BOTTLE_CAPACITY
         || candidate.layers.some(layer => !record(layer) || layer.color !== (candidate.layers as Record<string, unknown>[])[0]?.color))) return false;
       if (candidate.status === 'receive-only' && (candidate.layers.length < authored.layers.length
@@ -232,7 +266,7 @@ function validateRecovery(level: LevelDefinition, input: unknown): SessionRecove
         : aux.color !== null || aux.fulfilled !== false)) return false;
     if (aux.unlocked && aux.color !== null) assigned.set(aux.color as string, (assigned.get(aux.color as string) ?? 0) + 1);
     for (const color of upcoming.slice(value.nextTargetIndex as number)) assigned.set(color, (assigned.get(color) ?? 0) + 1);
-    if ([...demand].some(([color, count]) => assigned.get(color) !== count)) return false;
+    if ([...demand].some(([color, count]) => assigned.get(color) !== count) || !targetScheduleMatches(value as unknown as RuleCheckpoint)) return false;
     const complete = value.collected.length === [...supply.values()].reduce((sum, n) => sum + n, 0) / BOTTLE_CAPACITY
       && value.bottles.every(b => (b as Record<string, unknown>).layers instanceof Array && ((b as Record<string, unknown>).layers as unknown[]).length === 0)
       && value.targets.every(t => (t as Record<string, unknown>).fulfilled === true)
@@ -367,7 +401,7 @@ export function createGameSession(level: LevelDefinition, options: { readonly re
     selectedBottleId = selection;
   }
 
-  function restoreRules(saved: RuleCheckpoint): void {
+  function restoreRules(saved: RuleCheckpoint, events: GameEvent[] = []): void {
     const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
     const fourthUnlocked = auxiliarySlot.unlocked;
     applyRules(saved);
@@ -378,7 +412,7 @@ export function createGameSession(level: LevelDefinition, options: { readonly re
     if (fourthUnlocked && !auxiliarySlot.unlocked) {
       auxiliarySlot.unlocked = true;
       auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
-      collectMatchingBottles([]);
+      collectMatchingBottles(events);
     }
     selectedBottleId = null;
   }
@@ -683,20 +717,11 @@ export function createGameSession(level: LevelDefinition, options: { readonly re
       return { accepted: true, events };
     }
     if (action.type === 'restart') {
-      const unlockedBottles = AD_BOTTLE_IDS.filter(id => bottles.find(b => b.id === id)?.status !== 'ad-locked');
-      const fourthUnlocked = auxiliarySlot.unlocked;
-      applyRules(initialRules);
+      const events: GameEvent[] = [{ type: 'restarted', levelId }];
+      restoreRules(initialRules, events);
       history.length = 0;
-      selectedBottleId = null;
       pendingAd = null;
       sessionId = crypto.randomUUID();
-      for (const id of unlockedBottles) bottles.find(b => b.id === id)!.status = 'available';
-      const events: GameEvent[] = [{ type: 'restarted', levelId }];
-      if (fourthUnlocked) {
-        auxiliarySlot.unlocked = true;
-        auxiliarySlot.color = upcomingTargets[nextTargetIndex++]!;
-        collectMatchingBottles(events);
-      }
       return { accepted: true, events };
     }
     if (pendingAd) return { accepted: false, reason: 'ad-request-pending', events: [] };
