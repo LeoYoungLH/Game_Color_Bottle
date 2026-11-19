@@ -7,6 +7,13 @@ const COLORS: Record<string, { name: string; hex: string; symbol: string }> = {
   blue: { name: '靛蓝', hex: '#73a9dc', symbol: '▲' },
   honey: { name: '蜜黄', hex: '#e5bc64', symbol: '■' },
   violet: { name: '紫藤', hex: '#b995d8', symbol: '★' },
+  mint: { name: '薄荷', hex: '#57cab8', symbol: '✚' },
+  magenta: { name: '洋红', hex: '#ca7bc6', symbol: '✦' },
+  cyan: { name: '湖青', hex: '#62c6df', symbol: '○' },
+  amber: { name: '琥珀', hex: '#eda056', symbol: '◇' },
+  rose: { name: '蔷薇', hex: '#dd7ca3', symbol: '◉' },
+  brick: { name: '朱红', hex: '#ce6264', symbol: '⬟' },
+  slate: { name: '云灰', hex: '#94b6b3', symbol: '⬢' },
 };
 
 const AD_RESULT_LABELS: Record<AdOutcome, string> = {

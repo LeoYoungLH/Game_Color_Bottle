@@ -1620,3 +1620,106 @@ test('restore rejects a forged delivery slot and rights released before their ga
     assert.throws(() => restoreGameSession(level, early), /Invalid saved session/, id);
   }
 });
+
+test('S12 combines visible reveals, chained targets, a seal and a receive-only bottle in a no-ad win', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const authored = BASIC_LEVELS.find(level => level.definition.id === 'S12');
+  assert.ok(authored);
+  assert.equal(authored.version, 1);
+  assert.equal(authored.seed, null);
+  assert.equal(authored.definition.bottles.length + 2, 22);
+  let session = createGameSession(authored.definition);
+  const initial = session.getSnapshot();
+  assert.equal(initial.canShuffle, true);
+  assert.equal(initial.nextTarget, 'honey');
+  assert.deepEqual(initial.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+  assert.equal(initial.auxiliarySlot.unlocked, false);
+  const { layoutBottleRows } = await import('../src/view.ts');
+  const layout = layoutBottleRows(initial.bottles);
+  assert.equal(layout.columns, 8);
+  assert.deepEqual(layout.rows.map(row => row.length), [8, 8, 6]);
+  assert.deepEqual(layout.rows.map(row => row.filter(b => b.status === 'ad-locked').length), [0, 0, 2]);
+  const eventLog: { step: number; type: string; bottleId?: string }[] = [];
+  for (const [index, [from, to]] of authored.solution.entries()) {
+    const before = session.getSnapshot();
+    const source = before.bottles.find(b => b.id === from)!;
+    const target = before.bottles.find(b => b.id === to)!;
+    assert.equal(typeof source.layers.at(-1), 'string', `S12 step ${index + 1} needs a visible source`);
+    assert.ok(target.layers.length === 0 || target.layers.at(-1) === source.layers.at(-1));
+    const result = session.dispatch({ type: 'pour', from, to });
+    assert.equal(result.accepted, true, `S12 step ${index + 1}: ${from} → ${to}`);
+    for (const event of result.events) eventLog.push({ step: index + 1, type: event.type,
+      ...('bottleId' in event && typeof event.bottleId === 'string' ? { bottleId: event.bottleId } : {}) });
+    if (index === 3) {
+      const committed = session.getSnapshot();
+      session = restoreGameSession(authored.definition, session.getRecoveryState());
+      assert.deepEqual({ ...session.getSnapshot(), sessionId: committed.sessionId }, committed);
+    }
+  }
+  assert.deepEqual(eventLog.filter(event => event.type === 'released').map(event => [event.step, event.bottleId]), [[1, 'M']]);
+  assert.deepEqual(eventLog.filter(event => event.type === 'unsealed').map(event => [event.step, event.bottleId]), [[3, 'K']]);
+  assert.deepEqual(eventLog.filter(event => event.type === 'collected' && event.step === 3).map(event => event.bottleId), ['A', 'I', 'J', 'O']);
+  assert.deepEqual(eventLog.filter(event => event.type === 'collected' && event.step === 4).map(event => event.bottleId), ['K', 'M']);
+  assert.deepEqual(eventLog.filter(event => event.type === 'revealed').map(event => [event.step, event.bottleId]), [[2, 'A'], [5, 'B'], [7, 'P'], [12, 'S']]);
+  const final = session.getSnapshot();
+  assert.equal(final.phase, 'won');
+  assert.equal(final.collected.length, 12);
+  assert.equal(final.moveCount, 15);
+  assert.deepEqual(final.bottles.filter(b => b.status === 'ad-locked').map(b => b.id), ['ad-1', 'ad-2']);
+  assert.equal(final.auxiliarySlot.unlocked, false);
+  assert.equal(final.undoCredits, 0);
+  assert.equal(final.shuffleCredits, 0);
+  assert.equal(createGameSession(authored.definition).findSolution(0, authored.solution).status, 'solved');
+});
+
+test('S12 keeps four simulated reward targets independent', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const level = BASIC_LEVELS.find(candidate => candidate.definition.id === 'S12')!.definition;
+  const session = createGameSession(level);
+  session.dispatch({ type: 'request-shuffle' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.deepEqual([session.getSnapshot().shuffleCredits, session.getSnapshot().undoCredits], [1, 0]);
+  session.dispatch({ type: 'request-ad-bottle', bottleId: 'ad-1' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  session.dispatch({ type: 'request-fourth-slot' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.equal(session.getSnapshot().auxiliarySlot.unlocked, true);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'available');
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'ad-2')?.status, 'ad-locked');
+  assert.deepEqual(session.getSnapshot().collected.map(r => r.bottleId), ['I', 'J', 'O']);
+  session.dispatch({ type: 'pour', from: 'N', to: 'M' });
+  session.dispatch({ type: 'request-undo' });
+  session.dispatch({ type: 'resolve-ad', request: session.getSnapshot().pendingAd!, outcome: 'success' });
+  assert.deepEqual([session.getSnapshot().shuffleCredits, session.getSnapshot().undoCredits], [1, 1]);
+  assert.equal(session.getSnapshot().auxiliarySlot.unlocked, true);
+  assert.equal(session.getSnapshot().bottles.find(b => b.id === 'ad-1')?.status, 'available');
+});
+
+test('the validation catalog is S01–S12 and density boundaries keep at most three rows', async () => {
+  const { BASIC_LEVELS } = await import('../src/levels.ts');
+  const { layoutBottleRows } = await import('../src/view.ts');
+  assert.deepEqual(BASIC_LEVELS.map(level => level.definition.id),
+    Array.from({ length: 12 }, (_, index) => `S${String(index + 1).padStart(2, '0')}`));
+  for (const level of BASIC_LEVELS) {
+    assert.equal(level.version, 1);
+    assert.equal(level.seed, null);
+    assert.ok(level.solution.length > 0);
+    assert.ok(level.definition.bottles.length + 2 <= 24);
+    assert.ok(level.definition.bottles.filter(b => b.layers.length === 0).length >= 2);
+  }
+  const expected = new Map<number, number[]>([
+    [12, [6, 6]], [13, [6, 6, 1]], [18, [6, 6, 6]],
+    [19, [7, 7, 5]], [21, [7, 7, 7]], [22, [8, 8, 6]], [24, [8, 8, 8]],
+  ]);
+  for (const [total, counts] of expected) {
+    const bottles = [
+      ...Array.from({ length: total - 2 }, (_, index) => ({ id: `p${index}`, layers: [], status: 'available' as const })),
+      { id: 'ad-1', layers: [], status: 'ad-locked' as const },
+      { id: 'ad-2', layers: [], status: 'ad-locked' as const },
+    ];
+    const layout = layoutBottleRows(bottles);
+    assert.deepEqual(layout.rows.map(row => row.length), counts, `${total} positions`);
+    assert.ok(layout.rows.length <= 3 && layout.rows.every(row => row.length <= 8));
+    assert.equal(layout.rows.flat().filter(b => b.status === 'ad-locked').length, 2);
+  }
+});

@@ -5,7 +5,7 @@
 
 ## 当前可玩版本
 
-已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #13：重开与本地保存恢复](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/13)，包含 S01–S11 十一个验证关卡。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)。
+已实现 [Issue #2：基础倒水与收取](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/2) 至 [Issue #14：十二关验证清单](https://github.com/LeoYoungLH/Game_Color_Bottle/issues/14)，包含 S01–S12 十二个代表性验证关卡，并非正式教学的前十二关。完整启动、检查和范围说明见 [RUNNING.md](./RUNNING.md)，逐项验收状态见 [Issue #14 记录](./docs/implementation/issue-14.md)。
 
 ```powershell
 npm.cmd ci
